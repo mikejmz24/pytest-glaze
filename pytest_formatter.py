@@ -1,7 +1,7 @@
 """
 pytest_formatter.py — Opinionated pytest output formatter.
 
-Output style (mirrors the reference screenshot):
+Output style:
 
   tests/test_foo.py
     --- PASS  test_something                             0.8ms
@@ -20,6 +20,7 @@ Load via Makefile:
 """
 from __future__ import annotations
 
+import io
 import os
 import sys
 import time
@@ -28,27 +29,71 @@ from typing import Dict, List, Optional, Tuple
 
 import pytest
 
+try:
+    from _pytest._io import TerminalWriter as _PytestTerminalWriter
+except ImportError:  # pragma: no cover — only missing outside a pytest install
+    _PytestTerminalWriter = None  # type: ignore[assignment,misc]
+
 # ── ANSI palette ──────────────────────────────────────────────────────────────
-# Change these lambdas to retheme everything.
+# Plain functions so linters don't flag unnecessary-lambda-assignment.
+# Change the escape codes here to retheme everything.
 
 _NO_COLOR = not sys.stdout.isatty() or bool(os.environ.get("NO_COLOR"))
+
 
 def _esc(code: str, text: str) -> str:
     return text if _NO_COLOR else f"\033[{code}m{text}\033[0m"
 
-# Outcome colours
-c_pass  = lambda t: _esc("92", t)   # bright green
-c_fail  = lambda t: _esc("91", t)   # bright red
-c_error = lambda t: _esc("91", t)   # bright red
-c_skip  = lambda t: _esc("93", t)   # bright yellow
-c_xfail = lambda t: _esc("90", t)   # gray
-c_xpass = lambda t: _esc("93", t)   # yellow
 
-# UI colours
-c_emsg    = lambda t: _esc("91", t)   # inline error text
-c_section = lambda t: _esc("90", t)   # captured output headers
-c_dim     = lambda t: _esc("2",  t)   # metadata / timing
-c_bold    = lambda t: _esc("1",  t)   # bold
+def c_pass(t: str) -> str:
+    """Bright green — passing tests / expected values."""
+    return _esc("92", t)
+
+
+def c_fail(t: str) -> str:
+    """Bright red — failing tests / received values."""
+    return _esc("91", t)
+
+
+def c_error(t: str) -> str:
+    """Bright red — errors."""
+    return _esc("91", t)
+
+
+def c_skip(t: str) -> str:
+    """Bright yellow — skipped tests."""
+    return _esc("93", t)
+
+
+def c_xfail(t: str) -> str:
+    """Gray — expected failures."""
+    return _esc("90", t)
+
+
+def c_xpass(t: str) -> str:
+    """Yellow — unexpected passes."""
+    return _esc("93", t)
+
+
+def c_emsg(t: str) -> str:
+    """Bright red — inline error prefix and first error line."""
+    return _esc("91", t)
+
+
+def c_section(t: str) -> str:
+    """Gray — captured output section headers."""
+    return _esc("90", t)
+
+
+def c_dim(t: str) -> str:
+    """Dim — metadata, timing, context lines."""
+    return _esc("2", t)
+
+
+def c_bold(t: str) -> str:
+    """Bold — totals label."""
+    return _esc("1", t)
+
 
 # ── Outcome tables ────────────────────────────────────────────────────────────
 
@@ -74,15 +119,193 @@ _SUMMARY_FMT = {
 
 # ── Domain ────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class TestResult:
+    """Normalised result for a single test, ready for rendering."""
+
     nodeid:    str
     file:      str
     name:      str
-    outcome:   str                          # one of _OUTCOME_ORDER
-    duration:  float                        # seconds
-    short_msg: Optional[str] = None         # one-liner shown on the E line
+    outcome:   str                       # one of _OUTCOME_ORDER
+    duration:  float                     # seconds
+    short_msg: Optional[str] = None      # one-liner shown on the E line
     sections:  List[Tuple[str, str]] = field(default_factory=list)
+
+
+# ── Line coloring ─────────────────────────────────────────────────────────────
+
+class LineColorizer:
+    """
+    All E-line coloring decisions, extracted for unit testability.
+
+    Fully independent of pytest internals — operates on plain strings.
+    The key feature is parse_assert(), which splits 'assert X op Y' so
+    X (received) can be colored red and Y (expected) green, matching the
+    +/- diff coloring on subsequent lines.
+    """
+
+    # Operators ordered longest-first to prevent partial matches
+    # (e.g. "is not" must be tried before "is", "not in" before "in")
+    _CMP_OPS: Tuple[str, ...] = (
+        "is not", "not in",
+        "==", "!=", "<=", ">=",
+        "is", "in",
+        "<", ">",
+    )
+
+    # E lines that add no value in compact output
+    _NOISE: Tuple[str, ...] = (
+        "Use -v to get more diff",
+        "use -vv to show",
+        "Omitting",
+        "Full diff",
+    )
+
+    @classmethod
+    def parse_assert(cls, text: str) -> Optional[Tuple[str, str, str]]:
+        """
+        Parse an assertion line into (received, operator, expected).
+
+        Handles:
+          'assert 3 == 30'
+          'AssertionError: assert X == Y'
+          'assert None is not None'
+          'assert "foo" in ["bar", "baz"]'
+          'assert {1, 2} == {1, 3}'
+
+        The parser tracks bracket and quote depth so operators inside
+        string literals or containers are not mistakenly matched.
+
+        Returns None if the text is not a recognisable assertion.
+        """
+        # Strip optional "AssertionError: " prefix
+        body = text
+        if body.startswith("AssertionError: "):
+            body = body[len("AssertionError: "):]
+
+        if not body.startswith("assert "):
+            return None
+
+        inner = body[len("assert "):]
+        result = cls._find_op(inner)
+        if result is None:
+            return None
+
+        pos, op = result
+        received = inner[:pos].strip()
+        expected = inner[pos + len(f" {op} "):].strip()
+        return received, op, expected
+
+    @classmethod
+    def _find_op(cls, text: str) -> Optional[Tuple[int, str]]:
+        """
+        Scan text for the first comparison operator at bracket/quote depth 0.
+
+        Returns (position, operator) or None.
+        Depth tracking:
+          - Bracket pairs ()[]{}  increment / decrement depth
+          - String literals ' and " are consumed so their contents are skipped
+        """
+        depth = 0
+        in_str: Optional[str] = None
+        i = 0
+
+        while i < len(text):
+            ch = text[i]
+
+            # Inside a string literal — skip until closing quote
+            if in_str is not None:
+                if ch == in_str and (i == 0 or text[i - 1] != "\\"):
+                    in_str = None
+                i += 1
+                continue
+
+            # Start of a string literal
+            if ch in ('"', "'"):
+                in_str = ch
+                i += 1
+                continue
+
+            # Bracket depth tracking
+            if ch in "([{":
+                depth += 1
+                i += 1
+                continue
+
+            if ch in ")]}":
+                depth -= 1
+                i += 1
+                continue
+
+            # Only match operators at the top level
+            if depth == 0:
+                for op in cls._CMP_OPS:
+                    pattern = f" {op} "
+                    if text[i: i + len(pattern)] == pattern:
+                        return i, op
+
+            i += 1
+
+        return None
+
+    @classmethod
+    def color_assert_line(cls, text: str) -> str:
+        """
+        Color 'assert X op Y' with received (X) in red and expected (Y) in green.
+
+        If the line cannot be parsed as an assertion, falls back to full red.
+        The 'AssertionError:' prefix is preserved in red; 'assert' and the
+        operator are dimmed so the values stand out.
+        """
+        parsed = cls.parse_assert(text)
+        if parsed is None:
+            return c_emsg(text)
+
+        received, op, expected = parsed
+
+        prefix = c_emsg("AssertionError: ") if text.startswith("AssertionError: ") else ""
+        return (
+            prefix
+            + c_dim("assert ")
+            + c_fail(expected)
+            + c_dim(f" {op} ")
+            + c_pass(received)
+        )
+
+    @classmethod
+    def color_e_line(cls, line: str, outcome: str, is_first: bool) -> str:
+        """
+        Dispatch coloring for one E line based on content and context.
+
+        Rules (in priority order):
+          skipped outcome      → yellow throughout (it's a reason, not an error)
+          starts with '- '     → green  (expected value in unified diff)
+          starts with '+ '     → red    (received value in unified diff)
+          starts with '? '     → dim    (diff caret pointer)
+          first line + assert  → parse and color left/right individually
+          first line otherwise → red    (main exception type and message)
+          any other line       → dim    (context — informative but not primary)
+        """
+        if outcome == "skipped":
+            return c_skip(line)
+        if line.startswith("- ") or line == "-":
+            return c_pass(line)
+        if line.startswith("+ ") or line == "+":
+            return c_fail(line)
+        if line.startswith("? "):
+            return c_dim(line)
+        if is_first and cls.parse_assert(line) is not None:
+            return cls.color_assert_line(line)
+        if is_first:
+            return c_emsg(line)
+        return c_dim(line)
+
+    @classmethod
+    def is_noise(cls, line: str) -> bool:
+        """Return True if the line adds no value and should be suppressed."""
+        return any(noise in line for noise in cls._NOISE)
+
 
 # ── Plugin ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +324,7 @@ class FormatterPlugin:
         self._results:    List[TestResult] = []
         self._t0:         float = 0.0
         self._cur_file:   Optional[str] = None
-        self._file_buf:   List[TestResult] = []   # results for the active file
+        self._file_buf:   List[TestResult] = []
         self._col_errors: List[Tuple[str, str]] = []
 
     # ── I/O ───────────────────────────────────────────────────────────────────
@@ -129,7 +352,6 @@ class FormatterPlugin:
           1. xfail/xpass reason from report.wasxfail
           2. Skip reason from the (file, lineno, reason) tuple
           3. E-prefixed assertion introspection lines from the traceback
-             (the "assert 3 == 30 / where 3 = result" detail pytest rewrites)
           4. reprcrash.message as fallback
           5. First non-blank line of the string repr
         """
@@ -141,38 +363,26 @@ class FormatterPlugin:
         if not lr:
             return None
 
-        # Skip reason: (filename, lineno, "Skipped: ...")
         if isinstance(lr, tuple) and len(lr) == 3:
             return str(lr[2])
 
-        # ReprExceptionInfo — assertion / exception failures.
-        # Extract the E-prefixed lines pytest's assertion rewriting produces.
-        # These contain the actual diff/detail, e.g.:
-        #   E  assert 3 == 30
-        #   E    where 3 = result
         reprcrash = getattr(lr, "reprcrash", None)
         if reprcrash is not None:
-            e_lines = []
-            for line in str(lr).splitlines():
-                stripped = line.lstrip()
-                if stripped.startswith("E ") or stripped == "E":
-                    content = stripped[1:].strip()
-                    if content:
-                        e_lines.append(content)
-
+            e_lines = [
+                stripped[1:].strip()
+                for raw in str(lr).splitlines()
+                if (stripped := raw.lstrip())
+                and (stripped.startswith("E ") or stripped == "E")
+                and stripped[1:].strip()
+            ]
             if e_lines:
-                return "\n".join(e_lines[:6])   # cap at 6 lines
+                return "\n".join(e_lines[:6])
+            return reprcrash.message  # type: ignore[union-attr]
 
-            # No E lines (e.g. bare raise with no message): fall back
-            return reprcrash.message
-
-        # Fallback: first non-blank line of the string repr
-        for line in str(lr).strip().splitlines():
-            stripped = line.strip()
-            if stripped:
-                return stripped[:300]
-
-        return None
+        return next(
+            (ln.strip()[:300] for ln in str(lr).strip().splitlines() if ln.strip()),
+            None,
+        )
 
     @staticmethod
     def _split_nodeid(nodeid: str) -> Tuple[str, str]:
@@ -191,9 +401,10 @@ class FormatterPlugin:
             self._p()
         self._cur_file = file
         self._file_buf = []
-        self._p(file)   # plain white file path, matches screenshot
+        self._p(file)
 
     def _flush_file_summary(self) -> None:
+        """Print the per-file '=> N passed, N failed' summary line."""
         counts: Dict[str, int] = {}
         for r in self._file_buf:
             counts[r.outcome] = counts.get(r.outcome, 0) + 1
@@ -201,44 +412,14 @@ class FormatterPlugin:
         parts = [
             _SUMMARY_FMT[o](n)
             for o in _OUTCOME_ORDER
-            if (n := counts.get(o))
+            if (n := counts.get(o))  # pylint: disable=superfluous-parens
         ]
-        line = ", ".join(parts) if parts else c_dim("nothing ran")
-        self._p(f"  => {line}")
+        self._p(f"  => {', '.join(parts) if parts else c_dim('nothing ran')}")
 
     # ── Per-result rendering ──────────────────────────────────────────────────
 
-    # Noise lines that add no value in compact output
-    _NOISE = (
-        "Use -v to get more diff",
-        "use -vv to show",
-        "Omitting",
-        "Full diff",
-    )
-
-    def _e_color(self, line: str, outcome: str, is_first: bool) -> str:
-        """
-        Pick the right colour for a single E line.
-
-          -  expected value  → green
-          +  received value  → red
-          ?  diff pointer    → dim
-          first line        → red  (the main error/exception message)
-          everything else   → dim  (context, not signal)
-        """
-        if outcome == "skipped":
-            return c_skip(line)
-        if line.startswith("- ") or line == "-":
-            return c_pass(line)          # expected  → green
-        if line.startswith("+ ") or line == "+":
-            return c_fail(line)          # received  → red
-        if line.startswith("? "):
-            return c_dim(line)           # diff pointer → dim
-        if is_first:
-            return c_emsg(line)          # main error message → red
-        return c_dim(line)               # context lines → dim
-
     def _render_result(self, r: TestResult) -> None:
+        """Print one test result line, inline E lines, and captured sections."""
         badge = _BADGE.get(r.outcome, r.outcome.upper())
         dur   = c_dim(f"  {r.duration * 1000:.1f}ms")
         self._p(f"  --- {badge}  {r.name}{dur}")
@@ -246,13 +427,12 @@ class FormatterPlugin:
         if r.short_msg:
             lines = [
                 ln for ln in r.short_msg.splitlines()
-                if not any(noise in ln for noise in self._NOISE)
+                if not LineColorizer.is_noise(ln)
             ]
             for i, line in enumerate(lines):
-                colored = self._e_color(line, r.outcome, is_first=(i == 0))
+                colored = LineColorizer.color_e_line(line, r.outcome, is_first=(i == 0))
                 self._p(f"    {c_emsg('E')}  {colored}")
 
-        # Captured stdout / stderr / logs — only shown when a test fails/errors
         if r.outcome not in ("passed", "xfailed"):
             for section_name, content in r.sections:
                 if not content.strip():
@@ -264,12 +444,14 @@ class FormatterPlugin:
     # ── pytest hooks ──────────────────────────────────────────────────────────
 
     @pytest.hookimpl(tryfirst=True)
-    def pytest_sessionstart(self, session) -> None:
+    def pytest_sessionstart(self) -> None:
+        """Record session start time."""
         self._t0 = time.monotonic()
         self._p()
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_collection_finish(self, session) -> None:
+        """Print the 'collected N tests' header."""
         n    = len(session.items)
         noun = "test" if n == 1 else "tests"
         self._p(f"{c_dim('collected')} {c_bold(str(n))} {c_dim(noun)}")
@@ -285,7 +467,7 @@ class FormatterPlugin:
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_runtest_logreport(self, report) -> None:
-        # Suppress passing setup/teardown — only surface them when they fail.
+        """Handle each test phase report and render the result line."""
         if report.when != "call" and report.outcome == "passed":
             return
 
@@ -309,12 +491,11 @@ class FormatterPlugin:
         self._render_result(result)
 
     @pytest.hookimpl(trylast=True)
-    def pytest_sessionfinish(self, session, exitstatus) -> None:
-        # Flush the last open file group
+    def pytest_sessionfinish(self) -> None:
+        """Flush the last file summary and print the global Total line."""
         if self._file_buf:
             self._flush_file_summary()
 
-        # Collection errors
         if self._col_errors:
             self._p()
             self._p(c_bold(c_error("COLLECTION ERRORS")))
@@ -323,7 +504,6 @@ class FormatterPlugin:
                 for line in msg.splitlines():
                     self._p(f"    {c_dim(line)}")
 
-        # Global summary
         elapsed = time.monotonic() - self._t0
         counts: Dict[str, int] = {}
         for r in self._results:
@@ -332,38 +512,37 @@ class FormatterPlugin:
         parts = [
             _SUMMARY_FMT[o](n)
             for o in _OUTCOME_ORDER
-            if (n := counts.get(o))
+            if (n := counts.get(o))  # pylint: disable=superfluous-parens
         ]
         summary = ", ".join(parts) if parts else c_dim("no tests ran")
-        timing  = c_dim(f"in {elapsed:.2f}s")
-
         self._p()
-        self._p(f"{c_bold('Total:')} {summary}  {timing}")
+        self._p(f"{c_bold('Total:')} {summary}  {c_dim(f'in {elapsed:.2f}s')}")
         self._p()
 
 
 # ── Registration ──────────────────────────────────────────────────────────────
 
 def pytest_configure(config: pytest.Config) -> None:
-    # Guard: the module itself is already registered as "pytest_formatter" when
-    # loaded via -p.  Register the stateful instance under a distinct name.
-    _KEY = "_pytest_formatter_instance"
-    if not config.pluginmanager.get_plugin(_KEY):
-        config.pluginmanager.register(FormatterPlugin(), _KEY)
+    """Register the formatter plugin and a terminal-reporter stub if needed."""
+    _plugin_key = "_pytest_formatter_instance"
+    if not config.pluginmanager.get_plugin(_plugin_key):
+        config.pluginmanager.register(FormatterPlugin(), _plugin_key)
 
     # When -p no:terminal is used, the real TerminalReporter is absent.
     # pytest's assertion rewriting calls config.get_terminal_writer() which
     # asserts terminalreporter is not None — causing bare "AssertionError"
     # with no detail on every assertion failure.
     #
-    # Fix: register a minimal stub so get_terminal_writer() works, while
-    # all output is silently discarded to /dev/null.
-    if not config.pluginmanager.get_plugin("terminalreporter"):
-        from _pytest._io import TerminalWriter
+    # Fix: register a minimal stub so get_terminal_writer() works while
+    # all output is silently discarded into a StringIO sink.
+    terminal_absent = not config.pluginmanager.get_plugin("terminalreporter")
+    if terminal_absent and _PytestTerminalWriter is not None:
+        _writer_cls = _PytestTerminalWriter  # local binding — narrows type for Pyright
 
-        class _TerminalReporterStub:
+        class _TerminalReporterStub:  # pylint: disable=too-few-public-methods
             """Exists only to satisfy config.get_terminal_writer()."""
+
             def __init__(self) -> None:
-                self._tw = TerminalWriter(open(os.devnull, "w"))
+                self._tw = _writer_cls(io.StringIO())
 
         config.pluginmanager.register(_TerminalReporterStub(), "terminalreporter")
