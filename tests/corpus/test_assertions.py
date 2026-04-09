@@ -5,6 +5,7 @@ Covers every assertion introspection shape pytest produces:
   dict diff, set diff, boolean, None check, membership, custom message,
   approximate equality, chained comparison.
 """
+import math
 import pytest
 
 
@@ -30,12 +31,15 @@ def test_fail_int_equality():
 
 
 def test_fail_string_short():
-    assert "INTGPT-109" == "INTGPT-1091"                # mirrors screenshot
+    string_a: str = "INTGPT-109"
+    string_b: str = "INTGPT-1091"
+    assert string_a == string_b
 
 
 def test_fail_string_multiline():
-    assert "hello\nworld\nxxx" == "hello\nworld\nyyy"
-
+    string_a: str = "hello\nworld\nxxx"
+    string_b: str = "hello\nworld\nyyy"
+    assert  string_a == string_b
 
 def test_fail_list():
     assert ["Global Launch"] == ["Global Launches"]     # mirrors screenshot
@@ -72,7 +76,6 @@ def test_fail_custom_message():
 
 
 def test_fail_approximate():
-    import math
     assert math.pi == pytest.approx(3.14, abs=0.001)
 
 

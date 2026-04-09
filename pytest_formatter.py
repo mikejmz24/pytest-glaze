@@ -40,59 +40,82 @@ except ImportError:  # pragma: no cover — only missing outside a pytest instal
 
 _NO_COLOR = not sys.stdout.isatty() or bool(os.environ.get("NO_COLOR"))
 
+# FIX 1: _RED_SOFT was "\033[0;38;2;252;205;174;49" — two bugs:
+#   • It included a "\033[" prefix; _esc() already supplies that, so the
+#     rendered escape became "\033[\033[…m" (doubled CSI).
+#   • It had a trailing ";49" (default-background reset) that was unintentional.
+_RED_SOFT      = "0;38;2;252;205;174"   # 24-bit peach — c_emsg / context lines
+_BRIGHT_GREEN  = "92"
+_BRIGHT_RED    = "91"
+_BRIGHT_YELLOW = "93"
+# FIX 2: Errors and failures were both using _BRIGHT_RED, making them
+#   visually indistinguishable despite different semantic meanings.
+#   Errors (collection failures, setup/teardown crashes) now use standard
+#   red so they read as distinct from assertion-failure highlights.
+_STANDARD_RED  = "31"
+_GRAY          = "90"
+_DIM           = "2"
+_BOLD          = "1"
+
+# ── Max E-lines surfaced inline ───────────────────────────────────────────────
+# FIX 8: Hard-coded limit of 6 was too low for large assertion diffs
+#   (e.g. comparing big dicts/lists). Raised and named so it's easy to tune.
+#   Noise filtering in _render_result provides a second layer of trimming.
+MAX_E_LINES: int = 15
+
 
 def _esc(code: str, text: str) -> str:
     return text if _NO_COLOR else f"\033[{code}m{text}\033[0m"
 
 
 def c_pass(t: str) -> str:
-    """Bright green — passing tests / expected values."""
-    return _esc("92", t)
+    """Bright green — passing tests / received values."""
+    return _esc(_BRIGHT_GREEN, t)
 
 
 def c_fail(t: str) -> str:
-    """Bright red — failing tests / received values."""
-    return _esc("91", t)
+    """Bright red — FAIL badge, expected values in assertions."""
+    return _esc(_BRIGHT_RED, t)
 
 
 def c_error(t: str) -> str:
-    """Bright red — errors."""
-    return _esc("91", t)
+    """Standard red — ERROR badge, collection errors, setup/teardown crashes."""
+    return _esc(_STANDARD_RED, t)
 
 
 def c_skip(t: str) -> str:
     """Bright yellow — skipped tests."""
-    return _esc("93", t)
+    return _esc(_BRIGHT_YELLOW, t)
 
 
 def c_xfail(t: str) -> str:
     """Gray — expected failures."""
-    return _esc("90", t)
+    return _esc(_BRIGHT_RED, t)
 
 
 def c_xpass(t: str) -> str:
     """Yellow — unexpected passes."""
-    return _esc("93", t)
+    return _esc(_BRIGHT_YELLOW, t)
 
 
 def c_emsg(t: str) -> str:
-    """Bright red — inline error prefix and first error line."""
-    return _esc("91", t)
+    """Peach / soft red — E-line messages, context lines, assert keywords."""
+    return _esc(_RED_SOFT, t)
 
 
 def c_section(t: str) -> str:
     """Gray — captured output section headers."""
-    return _esc("90", t)
+    return _esc(_GRAY, t)
 
 
 def c_dim(t: str) -> str:
     """Dim — metadata, timing, context lines."""
-    return _esc("2", t)
+    return _esc(_DIM, t)
 
 
 def c_bold(t: str) -> str:
     """Bold — totals label."""
-    return _esc("1", t)
+    return _esc(_BOLD, t)
 
 
 # ── Outcome tables ────────────────────────────────────────────────────────────
@@ -141,7 +164,7 @@ class LineColorizer:
 
     Fully independent of pytest internals — operates on plain strings.
     The key feature is parse_assert(), which splits 'assert X op Y' so
-    X (received) can be colored red and Y (expected) green, matching the
+    X (received) can be colored green and Y (expected) red, matching the
     +/- diff coloring on subsequent lines.
     """
 
@@ -154,13 +177,62 @@ class LineColorizer:
         "<", ">",
     )
 
-    # E lines that add no value in compact output
+    # E lines that add no value in compact output.
+    # FIX 7: "Full diff" → "Full diff:" to avoid false positives on test
+    #   output that legitimately contains the phrase "Full diff calculated" etc.
     _NOISE: Tuple[str, ...] = (
         "Use -v to get more diff",
         "use -vv to show",
         "Omitting",
-        "Full diff",
+        "Full diff:",
     )
+
+    # Characters that begin a Python value expression.
+    # Used to distinguish real values from prose words when checking whether
+    # an operator match is meaningful (e.g. the 'in' in 'Extra items in the
+    # left set:' must not be treated as a comparison operator).
+    VALUE_STARTERS: frozenset = frozenset("\"'([{-0123456789")
+
+    # Label-prefixed E-lines emitted by pytest plugins (e.g. pytest-approx).
+    # Maps the exact label string (including the trailing space) to the color
+    # function that should be applied to the value that follows it.
+    #
+    # Semantic choice (intentionally inverted from the assert-line convention):
+    #   Obtained → c_fail (red)  — the wrong value, the one that caused the failure
+    #   Expected → c_pass (green)— the target value, what the test demanded
+    #
+    # This reads naturally as a standalone label pair: red = bad, green = goal.
+    _LABEL_COLORS: Tuple[Tuple[str, object], ...] = (
+        ("Obtained: ", c_fail),
+        ("Expected: ", c_pass),
+    )
+
+    @classmethod
+    def split_prefix(cls, text: str) -> Tuple[str, str]:
+        """
+        Separate a human-readable prose prefix from a Python value expression.
+
+        Scans left-to-right for the first ': ' immediately followed by a
+        VALUE_STARTERS character.  Everything up to and including that ': ' is
+        the prefix; everything after is the value.
+
+        Examples::
+
+            'At index 0 diff: \\'Global Launch\\''
+                → ('At index 0 diff: ', '\\'Global Launch\\'')
+
+            '\\'Global Launch\\''   → ('', '\\'Global Launch\\'')
+            'Extra items'         → ('', 'Extra items')   # no value found
+            '{\\'b\\': 2}'          → ('', '{\\'b\\': 2}')  # starts with value char
+        """
+        if not text or text[0] in cls.VALUE_STARTERS:
+            return "", text
+        i = 0
+        while i < len(text) - 2:
+            if text[i] == ":" and text[i + 1] == " " and text[i + 2] in cls.VALUE_STARTERS:
+                return text[: i + 2], text[i + 2 :]
+            i += 1
+        return "", text
 
     @classmethod
     def parse_assert(cls, text: str) -> Optional[Tuple[str, str, str]]:
@@ -198,6 +270,33 @@ class LineColorizer:
         return received, op, expected
 
     @classmethod
+    def parse_bare_assert(cls, text: str) -> Optional[str]:
+        """
+        Parse ``assert VALUE`` where there is no comparison operator.
+
+        Returns the bare value string, or ``None`` if the line is not a bare
+        assertion (i.e. it has an operator, is not an assertion at all, or the
+        inner expression is empty after stripping).
+
+        Examples::
+
+            'assert False'              → 'False'
+            'assert None'               → 'None'
+            'assert is_valid'           → 'is_valid'
+            'assert None is not None'   → None  (has operator, use parse_assert)
+            'RuntimeError: boom'        → None  (not an assertion)
+        """
+        body = text
+        if body.startswith("AssertionError: "):
+            body = body[len("AssertionError: "):]
+        if not body.startswith("assert "):
+            return None
+        inner = body[len("assert "):].strip()
+        if not inner or cls._find_op(inner) is not None:
+            return None
+        return inner
+
+    @classmethod
     def _find_op(cls, text: str) -> Optional[Tuple[int, str]]:
         """
         Scan text for the first comparison operator at bracket/quote depth 0.
@@ -206,6 +305,11 @@ class LineColorizer:
         Depth tracking:
           - Bracket pairs ()[]{}  increment / decrement depth
           - String literals ' and " are consumed so their contents are skipped
+
+        Known limitation: triple-quoted strings ('''…''' / \"\"\"…\"\"\") are
+        not handled — the parser treats each quote as starting/ending a single-
+        character string literal. This is unlikely to appear in pytest repr()
+        output, but worth noting if the formatter is ever extended.
         """
         depth = 0
         in_str: Optional[str] = None
@@ -250,28 +354,89 @@ class LineColorizer:
         return None
 
     @classmethod
+    def parse_comparison(cls, text: str) -> Optional[Tuple[str, str, str]]:
+        """
+        Parse 'X op Y' without requiring an 'assert' prefix.
+
+        Used for context lines like:  {'b': 2} != {'b': 999}
+        Returns (received, operator, expected) or None.
+
+        ``received`` may include a prose prefix (e.g. ``'At index 0 diff:
+        \\'Global Launch\\''``); callers that render it should pass it through
+        :meth:`split_prefix` to isolate the actual value.
+
+        Returns ``None`` when the apparent operands are prose words rather than
+        Python value expressions.  This prevents false positives such as the
+        ``in`` operator being matched in ``'Extra items in the left set:'``.
+        """
+        result = cls._find_op(text)
+        if result is None:
+            return None
+        pos, op = result
+        received = text[:pos].strip()
+        expected = text[pos + len(f" {op} ") :].strip()
+        if not received or not expected:
+            return None
+        # Gate on both sides being real Python value expressions.
+        # Use split_prefix so a prose prefix like "At index 0 diff: " does not
+        # disqualify a line that carries a genuine value after the colon.
+        _, received_value = cls.split_prefix(received)
+        if not received_value or received_value[0] not in cls.VALUE_STARTERS:
+            return None
+        if expected[0] not in cls.VALUE_STARTERS:
+            return None
+        return received, op, expected
+
+    @classmethod
     def color_assert_line(cls, text: str) -> str:
         """
-        Color 'assert X op Y' with received (X) in red and expected (Y) in green.
+        Color assertion lines, dispatching on the form of the assertion.
 
-        If the line cannot be parsed as an assertion, falls back to full red.
-        The 'AssertionError:' prefix is preserved in red; 'assert' and the
-        operator are dimmed so the values stand out.
+        Two-sided (``assert X op Y``):
+            ``assert`` + op → soft red; received (X) → green; expected (Y) → bright red.
+
+        Bare (``assert VALUE`` with no operator):
+            ``assert`` → soft red; VALUE → bright red.
+            The value is the falsy thing that caused the failure; bright red
+            signals it immediately without needing a comparison partner.
+
+        Unrecognised lines fall back to uniform soft red.
+
+        The optional ``AssertionError: `` prefix is preserved in soft red in
+        all cases.
         """
+        # ── two-sided: assert X op Y ─────────────────────────────────────────
         parsed = cls.parse_assert(text)
-        if parsed is None:
-            return c_emsg(text)
+        if parsed is not None:
+            received, op, expected = parsed
+            prefix = c_emsg("AssertionError: ") if text.startswith("AssertionError: ") else ""
+            # Special case: 'is not' — render as 'is' + 'not VALUE' so the
+            # expected reads as a natural unit ("not None") rather than splitting
+            # the operator and repeating the same token on both sides.
+            # Before: GREEN(None)  dim(is not)  RED(None)
+            # After:  GREEN(None)  dim(is)      RED(not None)
+            if op == "is not":
+                colored_op       = c_emsg(" is ")
+                colored_expected = c_fail(f"not {expected}")
+            else:
+                colored_op       = c_emsg(f" {op} ")
+                colored_expected = c_fail(expected)
+            return (
+                prefix
+                + c_emsg("assert ")
+                + c_pass(received)
+                + colored_op
+                + colored_expected
+            )
 
-        received, op, expected = parsed
+        # ── bare: assert VALUE (no operator) ─────────────────────────────────
+        bare = cls.parse_bare_assert(text)
+        if bare is not None:
+            prefix = c_emsg("AssertionError: ") if text.startswith("AssertionError: ") else ""
+            return prefix + c_emsg("assert ") + c_fail(bare)
 
-        prefix = c_emsg("AssertionError: ") if text.startswith("AssertionError: ") else ""
-        return (
-            prefix
-            + c_dim("assert ")
-            + c_fail(expected)
-            + c_dim(f" {op} ")
-            + c_pass(received)
-        )
+        # ── fallback ──────────────────────────────────────────────────────────
+        return c_emsg(text)
 
     @classmethod
     def color_e_line(cls, line: str, outcome: str, is_first: bool) -> str:
@@ -279,13 +444,14 @@ class LineColorizer:
         Dispatch coloring for one E line based on content and context.
 
         Rules (in priority order):
-          skipped outcome      → yellow throughout (it's a reason, not an error)
-          starts with '- '     → green  (expected value in unified diff)
-          starts with '+ '     → red    (received value in unified diff)
-          starts with '? '     → dim    (diff caret pointer)
+          skipped outcome      → yellow     (it's a reason, not an error)
+          starts with '- '     → green      (received value in unified diff)
+          starts with '+ '     → bright red (expected value in unified diff)
+          starts with '? '     → soft red   (diff caret pointer)
           first line + assert  → parse and color left/right individually
-          first line otherwise → red    (main exception type and message)
-          any other line       → dim    (context — informative but not primary)
+          first line otherwise → soft red   (main exception type and message)
+          context + comparison → parse and color left/right individually
+          any other line       → soft red   (context — informative but not primary)
         """
         if outcome == "skipped":
             return c_skip(line)
@@ -294,17 +460,40 @@ class LineColorizer:
         if line.startswith("+ ") or line == "+":
             return c_fail(line)
         if line.startswith("? "):
-            return c_dim(line)
-        if is_first and cls.parse_assert(line) is not None:
-            return cls.color_assert_line(line)
-        if is_first:
             return c_emsg(line)
-        return c_dim(line)
+        if is_first:
+            # color_assert_line already falls back to c_emsg when the line
+            # is not a recognisable assertion, so no need to call parse_assert
+            # here first — that would be a redundant parse and an extra return.
+            return cls.color_assert_line(line)
+        # Non-first assertion lines (e.g. 'assert False' appearing after the
+        # AssertionError: message line) need the same treatment as first-line
+        # assertions.  parse_comparison would miss them entirely.
+        if line.startswith("assert ") or line.startswith("AssertionError: assert "):
+            return cls.color_assert_line(line)
+        parsed = cls.parse_comparison(line)
+        if parsed is not None:
+            received, op, expected = parsed
+            prefix, value = cls.split_prefix(received)
+            # prefix  → soft red (prose description, e.g. "At index 0 diff: ")
+            # value   → green    (what the code produced)
+            # op      → soft red
+            # expected→ bright red (what the test demanded)
+            return c_emsg(prefix) + c_pass(value) + c_emsg(f" {op} ") + c_fail(expected)
+        # Label-prefixed lines from pytest plugins (e.g. "Obtained: …", "Expected: …").
+        for label, color_fn in cls._LABEL_COLORS:
+            if line.startswith(label):
+                return c_emsg(label) + color_fn(line[len(label):])  # type: ignore[operator]
+        return c_emsg(line)
 
     @classmethod
     def is_noise(cls, line: str) -> bool:
         """Return True if the line adds no value and should be suppressed."""
-        return any(noise in line for noise in cls._NOISE)
+        if any(noise in line for noise in cls._NOISE):
+            return True
+        if line.startswith("?") and all(c in " -+^" for c in line[1:]):
+            return True
+        return False
 
 
 # ── Plugin ────────────────────────────────────────────────────────────────────
@@ -335,7 +524,7 @@ class FormatterPlugin:
     # ── Helpers ───────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _classify(report) -> str:
+    def classify(report) -> str:
         """Map a raw pytest report to one of the canonical outcome strings."""
         if hasattr(report, "wasxfail"):
             return "xpassed" if report.outcome == "passed" else "xfailed"
@@ -344,7 +533,7 @@ class FormatterPlugin:
         return report.outcome  # passed | failed | skipped
 
     @staticmethod
-    def _extract_short(report, outcome: str) -> Optional[str]:
+    def extract_short(report, outcome: str) -> Optional[str]:
         """
         Extract the most useful inline message for the E line.
 
@@ -376,7 +565,9 @@ class FormatterPlugin:
                 and stripped[1:].strip()
             ]
             if e_lines:
-                return "\n".join(e_lines[:6])
+                # FIX 8: was [:6] — too low for large assertion diffs.
+                # Noise filtering in _render_result provides a second pass.
+                return "\n".join(e_lines[:MAX_E_LINES])
             return reprcrash.message  # type: ignore[union-attr]
 
         return next(
@@ -385,7 +576,7 @@ class FormatterPlugin:
         )
 
     @staticmethod
-    def _split_nodeid(nodeid: str) -> Tuple[str, str]:
+    def split_nodeid(nodeid: str) -> Tuple[str, str]:
         """'a/b.py::foo[x-y]' → ('a/b.py', 'foo[x-y]')."""
         file, sep, name = nodeid.partition("::")
         return file, (name if sep else nodeid)
@@ -415,6 +606,10 @@ class FormatterPlugin:
             if (n := counts.get(o))  # pylint: disable=superfluous-parens
         ]
         self._p(f"  => {', '.join(parts) if parts else c_dim('nothing ran')}")
+        # FIX 4: Reset the buffer here so the intent is explicit. _open_file_group
+        # also resets it for the new file, but clearing at the flush site makes
+        # the ownership clear and prevents subtle bugs if the call order changes.
+        self._file_buf = []
 
     # ── Per-result rendering ──────────────────────────────────────────────────
 
@@ -430,7 +625,7 @@ class FormatterPlugin:
                 if not LineColorizer.is_noise(ln)
             ]
             for i, line in enumerate(lines):
-                colored = LineColorizer.color_e_line(line, r.outcome, is_first=(i == 0))
+                colored = LineColorizer.color_e_line(line, r.outcome, is_first=i == 0)
                 self._p(f"    {c_emsg('E')}  {colored}")
 
         if r.outcome not in ("passed", "xfailed"):
@@ -471,9 +666,9 @@ class FormatterPlugin:
         if report.when != "call" and report.outcome == "passed":
             return
 
-        outcome    = self._classify(report)
-        short_msg  = self._extract_short(report, outcome)
-        file, name = self._split_nodeid(report.nodeid)
+        outcome    = self.classify(report)
+        short_msg  = self.extract_short(report, outcome)
+        file, name = self.split_nodeid(report.nodeid)
 
         result = TestResult(
             nodeid    = report.nodeid,
@@ -493,7 +688,11 @@ class FormatterPlugin:
     @pytest.hookimpl(trylast=True)
     def pytest_sessionfinish(self) -> None:
         """Flush the last file summary and print the global Total line."""
-        if self._file_buf:
+        # FIX 5: Was `if self._file_buf` — that guard would silently skip the
+        # summary if the buffer happened to be empty (e.g. after a refactor
+        # that cleared it early). Keying on _cur_file is the correct signal:
+        # if we opened at least one file group, we must close it.
+        if self._cur_file is not None:
             self._flush_file_summary()
 
         if self._col_errors:
@@ -528,13 +727,6 @@ def pytest_configure(config: pytest.Config) -> None:
     if not config.pluginmanager.get_plugin(_plugin_key):
         config.pluginmanager.register(FormatterPlugin(), _plugin_key)
 
-    # When -p no:terminal is used, the real TerminalReporter is absent.
-    # pytest's assertion rewriting calls config.get_terminal_writer() which
-    # asserts terminalreporter is not None — causing bare "AssertionError"
-    # with no detail on every assertion failure.
-    #
-    # Fix: register a minimal stub so get_terminal_writer() works while
-    # all output is silently discarded into a StringIO sink.
     terminal_absent = not config.pluginmanager.get_plugin("terminalreporter")
     if terminal_absent and _PytestTerminalWriter is not None:
         _writer_cls = _PytestTerminalWriter  # local binding — narrows type for Pyright
