@@ -1,16 +1,52 @@
+[build-system]
+requires      = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-name = "pytest-formatter"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+name        = "pytest-glaze"
+version     = "0.1.0"
+description = "A thin, transparent coat that makes your test output shine."
+readme      = "README.md"
+license     = { file = "LICENSE" }
+authors     = [{ name = "mikejmz24", email = "miguelbass2009@gmail.com" }]
+
+requires-python = ">=3.10"
+dependencies    = ["pytest>=7.0"]
+
+keywords = ["pytest", "plugin", "formatter", "output", "terminal", "color"]
+
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: Pytest",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Terminals",
+    "Environment :: Console",
+]
+
+[project.urls]
+Homepage   = "https://github.com/mikejmz24/pytest-glaze"
+Repository = "https://github.com/mikejmz24/pytest-glaze"
+Issues     = "https://github.com/mikejmz24/pytest-glaze/issues"
+
+[project.entry-points."pytest11"]
+pytest_glaze = "pytest_glaze"
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
     "pylint>=4.0.5",
 ]
+
+[tool.hatch.build.targets.wheel]
+include = ["pytest_glaze.py"]
 
 [tool.pylint.main]
 ignore = [".venv", "__pycache__"]

@@ -1,5 +1,5 @@
 """
-pytest_formatter.py — Opinionated pytest output formatter.
+pytest_glaze.py — Opinionated pytest output formatter.
 
 Output style:
 
@@ -16,7 +16,7 @@ Output style:
   Total: 1 passed, 1 failed, 1 error, 1 skipped  in 0.12s
 
 Load via Makefile:
-    PYTHONPATH=. pytest -p no:terminal -p pytest_formatter [TARGET]
+    PYTHONPATH=. pytest -p no:terminal -p pytest_glaze [TARGET]
 """
 from __future__ import annotations
 
@@ -793,7 +793,7 @@ class FormatterPlugin:
 
 def pytest_configure(config: pytest.Config) -> None:
     """Register the formatter plugin and a terminal-reporter stub if needed."""
-    _plugin_key = "_pytest_formatter_instance"
+    _plugin_key = "_pytest_glaze_instance"
     if not config.pluginmanager.get_plugin(_plugin_key):
         config.pluginmanager.register(FormatterPlugin(), _plugin_key)
 

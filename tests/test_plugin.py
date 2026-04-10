@@ -12,8 +12,8 @@ Coverage:
 """
 from types import SimpleNamespace
 
-import pytest_formatter
-from pytest_formatter import FormatterPlugin
+import pytest_glaze
+from pytest_glaze import FormatterPlugin
 
 
 # ── split_nodeid ──────────────────────────────────────────────────────────────
@@ -156,7 +156,7 @@ class TestExtractShort:
         r = SimpleNamespace(longrepr=_FakeLongrepr(lines, reprcrash_msg="err"))
         result = FormatterPlugin.extract_short(r, "failed")
         assert result is not None
-        assert len(result.splitlines()) == pytest_formatter.MAX_E_LINES
+        assert len(result.splitlines()) == pytest_glaze.MAX_E_LINES
 
     def test_reprcrash_message_fallback_when_no_e_lines(self):
         text = "some traceback without any E-prefixed lines"

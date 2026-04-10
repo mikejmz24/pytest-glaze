@@ -13,7 +13,7 @@ Coverage:
   parse_approx_table_row — pipe-delimited approx table row detector
   is_noise            — noise-line suppression filter
 """
-from pytest_formatter import LineColorizer
+from pytest_glaze import LineColorizer
 
 
 # ── parse_assert ──────────────────────────────────────────────────────────────

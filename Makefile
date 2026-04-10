@@ -1,13 +1,13 @@
 # ── Settings ─────────────────────────────────────────────────────────────────
 
 PYTHON   := python
-PYTEST   := uv run pytest
+PYTEST   := uv run python -m pytest
 TESTS    := tests/
 
 # Core formatter flags.
 # -p no:terminal   → silence the default reporter
-# -p pytest_formatter → load our plugin (PYTHONPATH=. makes it importable)
-FMT := -p no:terminal -p pytest_formatter
+# -p pytest_glaze → load our plugin (PYTHONPATH=. makes it importable)
+FMT := -p no:terminal -p pytest_glaze
 
 # Optional pass-through vars:
 #   make test SUITE=tests/test_entities.py   → single suite

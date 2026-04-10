@@ -13,7 +13,7 @@ Coverage:
 """
 import re
 
-from pytest_formatter import LineColorizer
+from pytest_glaze import LineColorizer
 
 # ── ANSI color constants ───────────────────────────────────────────────────────
 # Kept here rather than conftest.py: only coloring tests inspect escape codes.

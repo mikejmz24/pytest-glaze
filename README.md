@@ -8,7 +8,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/pytest-glaze?color=5fd700&labelColor=0d1117)](https://pypi.org/project/pytest-glaze/)
 [![pytest](https://img.shields.io/badge/pytest-%E2%89%A57.0-5fd700?labelColor=0d1117)](https://docs.pytest.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-5fd700?labelColor=0d1117)](LICENSE)
-[![GitHub](https://img.shields.io/badge/github-mikejmz24%2Fpytest--glaze-5fd700?labelColor=0d1117&logo=github)](https://github.com/mikejmz24/pytest-formatter)
+[![GitHub](https://img.shields.io/badge/github-mikejmz24%2Fpytest--glaze-5fd700?labelColor=0d1117&logo=github)](https://github.com/mikejmz24/pytest-glaze)
 
 <br/>
 
