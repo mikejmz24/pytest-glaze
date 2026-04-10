@@ -131,6 +131,16 @@ _BADGE: Dict[str, str] = {
     "xpassed": c_xpass("XPASS"),
 }
 
+# Color function applied to the "---" prefix — matches the badge for each outcome.
+_OUTCOME_COLOR = {
+    "passed":  c_pass,
+    "failed":  c_fail,
+    "error":   c_error,
+    "skipped": c_skip,
+    "xfailed": c_xfail,
+    "xpassed": c_xpass,
+}
+
 _SUMMARY_FMT = {
     "passed":  lambda n: c_pass(f"{n} passed"),
     "failed":  lambda n: c_fail(f"{n} failed"),
@@ -206,6 +216,38 @@ class LineColorizer:
         ("Obtained: ", c_fail),
         ("Expected: ", c_pass),
     )
+
+    @classmethod
+    def parse_approx_table_row(cls, text: str) -> Optional[Tuple[str, str, str]]:
+        """
+        Parse a pytest-approx pipe-separated table **data** row.
+
+        Matches the per-element rows emitted for list and dict approx failures::
+
+            '0     | 0.30000000000000004 | 0.4 ± 1.0e-09'
+            'x     | 1.0                 | 2.0 ± 1.0e-09'
+
+        Returns ``(index_col, obtained_col, expected_col)`` where each value
+        includes its original surrounding whitespace so the caller can preserve
+        column alignment when applying colors.
+
+        Returns ``None`` for:
+          - The header row   ``'Index | Obtained  | Expected'``  — obtained column
+            starts with a letter, not a digit.
+          - Any line with a pipe count other than exactly 2.
+          - Lines where the obtained column is empty after stripping.
+        """
+        if text.count("|") != 2:
+            return None
+        idx_col, obt_col, exp_col = text.split("|")
+        obtained_stripped = obt_col.strip()
+        if not obtained_stripped:
+            return None
+        # Discriminate data rows from the header: obtained starts with a digit
+        # (or '-' for negative numbers). The header has "Obtained" (starts 'O').
+        if not (obtained_stripped[0].isdigit() or obtained_stripped[0] == "-"):
+            return None
+        return idx_col, obt_col, exp_col
 
     @classmethod
     def split_prefix(cls, text: str) -> Tuple[str, str]:
@@ -392,13 +434,17 @@ class LineColorizer:
         """
         Color assertion lines, dispatching on the form of the assertion.
 
+        Color convention (consistent with diff lines, Obtained/Expected labels,
+        and approx table rows throughout the formatter):
+          received value  → bright red  (c_fail) — the wrong value
+          expected value  → green       (c_pass) — the target value
+
         Two-sided (``assert X op Y``):
-            ``assert`` + op → soft red; received (X) → green; expected (Y) → bright red.
+            ``assert`` + op → soft red; received (X) → red; expected (Y) → green.
 
         Bare (``assert VALUE`` with no operator):
             ``assert`` → soft red; VALUE → bright red.
-            The value is the falsy thing that caused the failure; bright red
-            signals it immediately without needing a comparison partner.
+            The value is the falsy thing that caused the failure.
 
         Unrecognised lines fall back to uniform soft red.
 
@@ -410,21 +456,18 @@ class LineColorizer:
         if parsed is not None:
             received, op, expected = parsed
             prefix = c_emsg("AssertionError: ") if text.startswith("AssertionError: ") else ""
-            # Special case: 'is not' — render as 'is' + 'not VALUE' so the
-            # expected reads as a natural unit ("not None") rather than splitting
-            # the operator and repeating the same token on both sides.
-            # Before: GREEN(None)  dim(is not)  RED(None)
-            # After:  GREEN(None)  dim(is)      RED(not None)
+            # 'is not' — render as 'is' + 'not VALUE' so the expected reads as
+            # a natural unit ("not None") rather than repeating the same token.
             if op == "is not":
                 colored_op       = c_emsg(" is ")
-                colored_expected = c_fail(f"not {expected}")
+                colored_expected = c_pass(f"not {expected}")   # green — target condition
             else:
                 colored_op       = c_emsg(f" {op} ")
-                colored_expected = c_fail(expected)
+                colored_expected = c_pass(expected)            # green — target value
             return (
                 prefix
                 + c_emsg("assert ")
-                + c_pass(received)
+                + c_fail(received)       # red   — the wrong value
                 + colored_op
                 + colored_expected
             )
@@ -433,7 +476,7 @@ class LineColorizer:
         bare = cls.parse_bare_assert(text)
         if bare is not None:
             prefix = c_emsg("AssertionError: ") if text.startswith("AssertionError: ") else ""
-            return prefix + c_emsg("assert ") + c_fail(bare)
+            return prefix + c_emsg("assert ") + c_fail(bare)  # red — the falsy value
 
         # ── fallback ──────────────────────────────────────────────────────────
         return c_emsg(text)
@@ -443,15 +486,20 @@ class LineColorizer:
         """
         Dispatch coloring for one E line based on content and context.
 
+        Color convention (applied consistently across all line types):
+          received / obtained → bright red   — the wrong value
+          expected            → green        — the target value
+
         Rules (in priority order):
-          skipped outcome      → yellow     (it's a reason, not an error)
-          starts with '- '     → green      (received value in unified diff)
-          starts with '+ '     → bright red (expected value in unified diff)
+          skipped outcome      → yellow
+          starts with '- '     → green      (expected content — present in expected, absent in received)
+          starts with '+ '     → bright red (received content — present in received, absent in expected)
           starts with '? '     → soft red   (diff caret pointer)
-          first line + assert  → parse and color left/right individually
-          first line otherwise → soft red   (main exception type and message)
-          context + comparison → parse and color left/right individually
-          any other line       → soft red   (context — informative but not primary)
+          assertion line       → received red, expected green (via color_assert_line)
+          context + comparison → received red, expected green
+          label line           → Obtained: red  /  Expected: green
+          approx table row     → obtained column red, expected column green
+          any other line       → soft red
         """
         if outcome == "skipped":
             return c_skip(line)
@@ -475,15 +523,36 @@ class LineColorizer:
         if parsed is not None:
             received, op, expected = parsed
             prefix, value = cls.split_prefix(received)
-            # prefix  → soft red (prose description, e.g. "At index 0 diff: ")
-            # value   → green    (what the code produced)
-            # op      → soft red
-            # expected→ bright red (what the test demanded)
-            return c_emsg(prefix) + c_pass(value) + c_emsg(f" {op} ") + c_fail(expected)
+            # prefix   → soft red  (prose description, e.g. "At index 0 diff: ")
+            # value    → bright red (received — the wrong value)
+            # op       → soft red
+            # expected → green     (expected — the target value)
+            return c_emsg(prefix) + c_fail(value) + c_emsg(f" {op} ") + c_pass(expected)
         # Label-prefixed lines from pytest plugins (e.g. "Obtained: …", "Expected: …").
         for label, color_fn in cls._LABEL_COLORS:
             if line.startswith(label):
                 return c_emsg(label) + color_fn(line[len(label):])  # type: ignore[operator]
+        # Pipe-separated approx table data rows: "index | obtained | expected".
+        # Each column is colored individually while preserving the original
+        # whitespace padding so the table alignment stays intact.
+        table = cls.parse_approx_table_row(line)
+        if table is not None:
+            idx_col, obt_col, exp_col = table
+
+            def _color_col(col: str, color_fn) -> str:  # type: ignore[type-arg]
+                """Color just the value inside a padded column, keep spaces soft-red."""
+                stripped = col.strip()
+                leading  = col[: len(col) - len(col.lstrip())]
+                trailing = col[len(col.rstrip()) :]
+                return c_emsg(leading) + color_fn(stripped) + c_emsg(trailing)
+
+            return (
+                c_emsg(idx_col)
+                + c_emsg("|")
+                + _color_col(obt_col, c_fail)  # obtained → bright red
+                + c_emsg("|")
+                + _color_col(exp_col, c_pass)  # expected → green
+            )
         return c_emsg(line)
 
     @classmethod
@@ -615,9 +684,10 @@ class FormatterPlugin:
 
     def _render_result(self, r: TestResult) -> None:
         """Print one test result line, inline E lines, and captured sections."""
-        badge = _BADGE.get(r.outcome, r.outcome.upper())
-        dur   = c_dim(f"  {r.duration * 1000:.1f}ms")
-        self._p(f"  --- {badge}  {r.name}{dur}")
+        badge    = _BADGE.get(r.outcome, r.outcome.upper())
+        color_fn = _OUTCOME_COLOR.get(r.outcome, c_dim)
+        dur      = c_dim(f"  {r.duration * 1000:.1f}ms")
+        self._p(f"  {color_fn('---')} {badge}  {r.name}{dur}")
 
         if r.short_msg:
             lines = [

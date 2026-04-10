@@ -49,6 +49,11 @@ test-fast:
 test-corpus:
 	@PYTHONPATH=. $(PYTEST) $(FMT) tests/corpus/ $(ARGS)
 
+## test-unit      Run unit tests only (test_parsers, test_colorizer, test_plugin).
+##                No intentional failures — clean pass/fail signal.
+test-unit:
+	@PYTHONPATH=. $(PYTEST) $(FMT) tests/test_parsers.py tests/test_colorizer.py tests/test_plugin.py $(_KFLAG) $(ARGS)
+
 ## test-raw       Raw default pytest output. Useful for debugging the formatter.
 test-raw:
 	@$(PYTEST) $(_PATH) $(_KFLAG) $(ARGS)

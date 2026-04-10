@@ -2,6 +2,7 @@
 """
 Shared fixtures for the formatter validation corpus.
 """
+import time
 import pytest
 
 
@@ -27,6 +28,13 @@ def broken_teardown():
 @pytest.fixture
 def slow_fixture():
     """Fixture with a small sleep — confirms duration display."""
-    import time
     time.sleep(0.02)
     return "slow"
+
+
+@pytest.fixture(params=["alpha", "beta", "gamma"])
+def parametrized_fixture(request):
+    """Fixture-level params — produces one test instance per value.
+    Distinct from @pytest.mark.parametrize: the param appears in the
+    node ID as test_name[alpha], test_name[beta], etc."""
+    return {"label": request.param, "value": len(request.param)}
