@@ -16,13 +16,13 @@ from pytest_bdd import given, scenario, then, when
 
 # ── Scenario 9: Background + passing ─────────────────────────────────────────
 
-@scenario("features/background.feature", "User logs in successfully")
+@scenario("features/authentication.feature", "User logs in successfully")
 def test_login_success() -> None: ...
 
 
 # ── Scenario 10: Background + failing ────────────────────────────────────────
 
-@scenario("features/background.feature", "User login fails with wrong password")
+@scenario("features/authentication.feature", "User login fails with wrong password")
 def test_login_failure() -> None: ...
 
 
