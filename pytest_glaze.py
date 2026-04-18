@@ -25,7 +25,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
@@ -60,6 +60,8 @@ _STANDARD_RED  = "31"
 _GRAY          = "90"
 _DIM           = "2"
 _BOLD          = "1"
+_BABY_BLUE  = "0;38;2;220;248;255"   # near-white bright blue — Feature
+_STEEL_BLUE = "0;38;2;170;225;255"   # sky blue   — Scenario
 
 # ── Max E-lines surfaced inline ───────────────────────────────────────────────
 # FIX 8: Hard-coded limit of 6 was too low for large assertion diffs
@@ -121,6 +123,15 @@ def c_bold(t: str) -> str:
     """Bold — totals label."""
     return _esc(_BOLD, t)
 
+def c_bdd_feature(t: str) -> str:
+    """Baby blue — BDD Feature: label and name, full line."""
+    return _esc(_BABY_BLUE, t)
+
+
+def c_bdd_scenario(t: str) -> str:
+    """Steel blue — BDD Scenario: label and name, full line."""
+    return _esc(_STEEL_BLUE, t)
+
 
 # ── Outcome tables ────────────────────────────────────────────────────────────
 
@@ -170,6 +181,13 @@ class TestResult:
     short_msg: Optional[str] = None      # one-liner shown on the E line
     sections:  List[Tuple[str, str]] = field(default_factory=list)
 
+@dataclass
+class _BDDStep:
+    """Buffered BDD step waiting to be rendered at scenario flush time."""
+    step:      Any
+    outcome:   str
+    duration:  float
+    short_msg: Optional[str]
 
 # ── Line coloring ─────────────────────────────────────────────────────────────
 
@@ -589,6 +607,14 @@ class FormatterPlugin:
         self._cur_file:   Optional[str] = None
         self._file_buf:   List[TestResult] = []
         self._col_errors: List[Tuple[str, str]] = []
+        # BDD state
+        self._bdd_step_t0:       Dict[int, float]        = {}   # id(step) → start time
+        self._bdd_handled:       set                      = set()# nodeids rendered via BDD hooks
+        self._bdd_first_in_file: bool                     = True # spacing between scenarios
+        self._bdd_scenario_buf:  List                     = []   # buffered Scenario header + _BDDSteps
+        self._bdd_last_step_idx: int                      = -1   # index of last _BDDStep in buf
+        self._bdd_scenario_names: Dict[str, str]          = {}   # nodeid → scenario name (for skips)
+        self._bdd_cur_feature:   Optional[str] = None  # tracks printed feature header
 
     # ── I/O ───────────────────────────────────────────────────────────────────
 
@@ -664,8 +690,10 @@ class FormatterPlugin:
         if self._cur_file is not None:
             self._flush_file_summary()
             self._p()
-        self._cur_file = file
-        self._file_buf = []
+        self._cur_file          = file
+        self._file_buf          = []
+        self._bdd_cur_feature   = None   # reset so Feature header re-prints for new file
+        self._bdd_first_in_file = True
         self._p(file)
 
     def _flush_file_summary(self) -> None:
@@ -684,11 +712,31 @@ class FormatterPlugin:
         # also resets it for the new file, but clearing at the flush site makes
         # the ownership clear and prevents subtle bugs if the call order changes.
         self._file_buf = []
+        self._bdd_first_in_file = True # reset spacing flag for new file
 
     # ── Per-result rendering ──────────────────────────────────────────────────
 
     def _render_result(self, r: TestResult) -> None:
         """Print one test result line, inline E lines, and captured sections."""
+        # BDD scenario rendered step-by-step — flush buffered lines with
+        # any xfail/xpass correction applied to the last step.
+        if r.nodeid in self._bdd_handled:
+            self._bdd_flush_scenario(r.outcome, r.short_msg)
+            return
+
+        # Skipped BDD test — before_scenario never fired so buffer is empty.
+        # Render a single "--- SKIP  Scenario: …" line instead of the fn name.
+        if r.outcome == "skipped" and r.nodeid in self._bdd_scenario_names:
+            color_fn      = _OUTCOME_COLOR["skipped"]
+            badge         = _BADGE["skipped"]
+            scenario_name = self._bdd_scenario_names[r.nodeid]
+            self._p(f"  {color_fn('---')} {badge}  {c_dim('Scenario:')} {scenario_name}")
+            if r.short_msg:
+                colored = LineColorizer.color_e_line(r.short_msg, "skipped", is_first=True)
+                self._p(f"    {c_emsg('E')}  {colored}")
+            return
+
+        # ── Normal (non-BDD) rendering ────────────────────────────────────────
         badge    = _BADGE.get(r.outcome, r.outcome.upper())
         color_fn = _OUTCOME_COLOR.get(r.outcome, c_dim)
         dur      = c_dim(f"  {r.duration * 1000:.1f}ms")
@@ -711,7 +759,112 @@ class FormatterPlugin:
                 for ln in content.rstrip().splitlines():
                     self._p(f"    {ln}")
 
+# ── BDD helpers ───────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _extract_exception_msg(exc: BaseException) -> Optional[str]:
+        """Concise inline message from a step exception."""
+        raw = str(exc).strip()
+        if not raw:
+            return type(exc).__name__ or None
+        if not isinstance(exc, AssertionError):
+            raw = f"{type(exc).__name__}: {raw}"
+        lines = [ln for ln in raw.splitlines() if ln.strip()][:MAX_E_LINES]
+        return "\n".join(lines) or None
+
+    def _render_bdd_step_line(self, bdd_step: _BDDStep) -> None:
+        badge    = _BADGE.get(bdd_step.outcome, bdd_step.outcome.upper())
+        color_fn = _OUTCOME_COLOR.get(bdd_step.outcome, c_dim)
+        keyword  = getattr(bdd_step.step, "keyword", "").rstrip()
+        dur      = c_dim(f"  {bdd_step.duration * 1000:.1f}ms")
+        step_text = color_fn(f"{keyword} {bdd_step.step.name}")
+        self._p(f"      {color_fn('---')} {badge}  {step_text}{dur}")
+
+        if bdd_step.short_msg:
+            lines = [
+                ln for ln in bdd_step.short_msg.splitlines()
+                if not LineColorizer.is_noise(ln)
+            ]
+            for i, line in enumerate(lines):
+                colored = LineColorizer.color_e_line(line, bdd_step.outcome, is_first=i == 0)
+                self._p(f"        {c_emsg('E')}  {colored}")
+
+    def _bdd_flush_scenario(self, outcome: str, short_msg: Optional[str]) -> None:
+        """
+        Flush the buffered scenario lines, applying xfail/xpass correction
+        to the last step before printing.
+
+        For xfail: the last step was buffered as "failed" by _bdd_step_error.
+                   We override it to "xfailed" so it gets the XFAIL badge.
+        For xpass: the last step was buffered as "passed" by _bdd_after_step.
+                   We override it to "xpassed" so it gets the XPASS badge.
+        """
+        if outcome in ("xfailed", "xpassed") and self._bdd_last_step_idx >= 0:
+            last = self._bdd_scenario_buf[self._bdd_last_step_idx]
+            if isinstance(last, _BDDStep):
+                last.outcome   = outcome
+                last.short_msg = short_msg  # carries the xfail reason
+
+        for item in self._bdd_scenario_buf:
+            if isinstance(item, str):
+                self._p(item)
+            else:
+                self._render_bdd_step_line(item)
+
+        self._bdd_scenario_buf  = []
+        self._bdd_last_step_idx = -1
+
+    # ── BDD delegate methods (called by module-level hooks) ───────────────────
+
+    def _bdd_before_scenario(self, request, feature, scenario) -> None:
+        file, _ = self.split_nodeid(request.node.nodeid)
+        self._open_file_group(file)
+
+        feature_name = getattr(feature, "name", "")
+        self._bdd_scenario_buf = []
+
+        if feature_name and feature_name != self._bdd_cur_feature:
+            if not self._bdd_first_in_file:
+                self._bdd_scenario_buf.append("")   # blank line — flushed later
+            self._bdd_scenario_buf.append(c_bdd_feature(f"  Feature: {feature_name}"))
+            self._bdd_cur_feature   = feature_name
+            self._bdd_first_in_file = False
+        elif not self._bdd_first_in_file:
+            self._bdd_scenario_buf.append("")       # blank line between scenarios
+
+        self._bdd_first_in_file = False
+        self._bdd_scenario_buf.append(c_bdd_scenario(f"    Scenario: {scenario.name}"))
+        self._bdd_last_step_idx = -1
+
+    def _bdd_before_step(self, request, feature, scenario, step, step_func) -> None:
+        # Insert a dim "Background:" label before the first background step.
+        bg       = getattr(feature, "background", None)
+        bg_steps = list(bg.steps) if bg and hasattr(bg, "steps") else []
+        if bg_steps and step is bg_steps[0]:
+            self._bdd_scenario_buf.append(f"       {c_dim('Background:')}")
+        self._bdd_step_t0[id(step)] = time.monotonic()
+
+    def _bdd_after_step(
+        self, request, feature, scenario, step, step_func, step_func_args
+    ) -> None:
+        t0       = self._bdd_step_t0.pop(id(step), time.monotonic())
+        duration = time.monotonic() - t0
+        bdd_step = _BDDStep(step=step, outcome="passed", duration=duration, short_msg=None)
+        self._bdd_scenario_buf.append(bdd_step)
+        self._bdd_last_step_idx = len(self._bdd_scenario_buf) - 1
+        self._bdd_handled.add(request.node.nodeid)
+
+    def _bdd_step_error(
+        self, request, feature, scenario, step, step_func, step_func_args, exception
+    ) -> None:
+        t0        = self._bdd_step_t0.pop(id(step), time.monotonic())
+        duration  = time.monotonic() - t0
+        outcome   = "failed" if isinstance(exception, AssertionError) else "error"
+        short_msg = self._extract_exception_msg(exception)
+        bdd_step  = _BDDStep(step=step, outcome=outcome, duration=duration, short_msg=short_msg)
+        self._bdd_scenario_buf.append(bdd_step)
+        self._bdd_last_step_idx = len(self._bdd_scenario_buf) - 1
+        self._bdd_handled.add(request.node.nodeid)
     # ── pytest hooks ──────────────────────────────────────────────────────────
 
     @pytest.hookimpl(tryfirst=True)
@@ -722,11 +875,18 @@ class FormatterPlugin:
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_collection_finish(self, session) -> None:
-        """Print the 'collected N tests' header."""
+        """Print the 'collected N tests' header and index BDD scenario names."""
         n    = len(session.items)
         noun = "test" if n == 1 else "tests"
         self._p(f"{c_dim('collected')} {c_bold(str(n))} {c_dim(noun)}")
         self._p()
+        # Build nodeid → scenario name map so skipped BDD tests can be
+        # rendered as "--- SKIP  Scenario: …" rather than "--- SKIP  test_fn"
+        for item in session.items:
+            fn       = getattr(item, "function", None)
+            scenario = getattr(fn, "_pytest_bdd_scenario", None)
+            if scenario is not None:
+                self._bdd_scenario_names[item.nodeid] = scenario.name
 
     @pytest.hookimpl(tryfirst=True)
     def pytest_collectreport(self, report) -> None:
@@ -794,6 +954,36 @@ class FormatterPlugin:
         self._p(f"{c_bold('Total:')} {summary}  {c_dim(f'in {elapsed:.2f}s')}")
         self._p()
 
+# ── BDD hooks (module-level) ──────────────────────────────────────────────────
+# Must be module-level functions — pytest-bdd 8 uses strict hookspec validation
+# that rejects 'self' in hookimpl signatures. These delegate to the plugin
+# instance via _glaze_plugin and are no-ops when --glaze is not active.
+
+def pytest_bdd_before_scenario(request, feature, scenario) -> None:
+    if _glaze_plugin is not None:
+        _glaze_plugin._bdd_before_scenario(request, feature, scenario)
+
+
+def pytest_bdd_before_step(request, feature, scenario, step, step_func) -> None:
+    if _glaze_plugin is not None:
+        _glaze_plugin._bdd_before_step(request, feature, scenario, step, step_func)
+
+
+def pytest_bdd_after_step(
+    request, feature, scenario, step, step_func, step_func_args
+) -> None:
+    if _glaze_plugin is not None:
+        _glaze_plugin._bdd_after_step(request, feature, scenario, step, step_func, step_func_args)
+
+
+def pytest_bdd_step_error(
+    request, feature, scenario, step, step_func, step_func_args, exception
+) -> None:
+    if _glaze_plugin is not None:
+        _glaze_plugin._bdd_step_error(
+            request, feature, scenario, step, step_func, step_func_args, exception
+        )
+
 # ── Registration ──────────────────────────────────────────────────────────────
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -847,11 +1037,14 @@ def pytest_configure(config: pytest.Config) -> None:
         config.pluginmanager.set_blocked("terminal")
 
     _plugin_key = "_pytest_glaze_instance"
-    if not config.pluginmanager.get_plugin(_plugin_key):
+    existing = config.pluginmanager.get_plugin(_plugin_key)
+    if existing is None:
         plugin = FormatterPlugin()
         config.pluginmanager.register(plugin, _plugin_key)
-        global _glaze_plugin          # ← add
-        _glaze_plugin = plugin        # ← add
+    else:
+        plugin = existing
+    global _glaze_plugin
+    _glaze_plugin = plugin
 
     # Register stub so config.get_terminal_writer() never raises.
     if config.pluginmanager.get_plugin("terminalreporter") is None \
