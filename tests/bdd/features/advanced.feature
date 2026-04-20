@@ -78,3 +78,27 @@ Feature: Advanced BDD scenarios
     Given the user has successfully authenticated using their corporate single sign-on credentials
     When the user submits a request to retrieve all historical transaction records from the past 12 months
     Then the system returns a paginated response containing all matching records with full metadata
+
+# ── Wildcard * keyword ────────────────────────────────────────────────────
+  Scenario: Wildcard keyword steps
+    Given the system is ready
+    * the user sends a request
+    * the response is successful
+
+  # ── Generic @step decorator ───────────────────────────────────────────────
+  Scenario: Generic step decorator
+    Given a product exists in the catalog
+    When the product is added to the wishlist
+    Then the wishlist contains the product
+
+# ── Multi-column Scenario Outline ─────────────────────────────────────────
+  Scenario Outline: Shipping cost by region
+    Given the order is shipping to <region>
+    When the shipping cost is calculated
+    Then the cost is <cost>
+
+    Examples:
+      | region | cost |
+      | north  | 5    |
+      | south  | 8    |
+      | east   | 6    |

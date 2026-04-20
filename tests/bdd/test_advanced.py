@@ -13,7 +13,7 @@ Covers:
 """
 from __future__ import annotations
 
-from pytest_bdd import given, parsers, scenario, then, when
+from pytest_bdd import given, parsers, scenario, step, then, when
 
 
 # ── Scenario 3: Docstring ─────────────────────────────────────────────────────
@@ -244,3 +244,68 @@ def fetch_transactions(auth_session: dict) -> list:
 def assert_paginated_response(transaction_records: list) -> None:
     assert len(transaction_records) == 5
     assert all("id" in r and "amount" in r for r in transaction_records)
+
+# ── Wildcard * keyword ────────────────────────────────────────────────────────
+
+@scenario("features/advanced.feature", "Wildcard keyword steps")
+def test_wildcard_keyword() -> None: ...
+
+
+@given("the system is ready", target_fixture="system_state")
+def wildcard_system_ready() -> dict:
+    return {"ready": True, "response": None}
+
+
+@step("the user sends a request")
+def wildcard_send_request(system_state: dict) -> None:
+    system_state["response"] = 200
+
+
+@step("the response is successful")
+def wildcard_response_success(system_state: dict) -> None:
+    assert system_state["response"] == 200
+
+
+# ── Generic @step decorator ───────────────────────────────────────────────────
+
+@scenario("features/advanced.feature", "Generic step decorator")
+def test_generic_step_decorator() -> None: ...
+
+
+@step("a product exists in the catalog", target_fixture="product")
+def product_in_catalog() -> dict:
+    return {"id": "PROD-001", "name": "Widget", "in_wishlist": False}
+
+
+@step("the product is added to the wishlist")
+def add_to_wishlist(product: dict) -> None:
+    product["in_wishlist"] = True
+
+
+@step("the wishlist contains the product")
+def wishlist_contains(product: dict) -> None:
+    assert product["in_wishlist"] is True
+
+
+# ── Vertical example table ────────────────────────────────────────────────────
+
+@scenario("features/advanced.feature", "Shipping cost by region")
+def test_shipping_vertical() -> None: ...
+
+
+@given(parsers.parse("the order is shipping to {region}"),
+       target_fixture="shipping_region")
+def shipping_region(region: str) -> str:
+    return region
+
+
+@when("the shipping cost is calculated", target_fixture="shipping_cost")
+def calculate_shipping(shipping_region: str) -> int:
+    rates = {"north": 5, "south": 8, "east": 6}
+    return rates.get(shipping_region, 0)
+
+
+@then(parsers.parse("the cost is {cost}"))
+def assert_shipping_cost(shipping_cost: int, cost: str) -> None:
+    assert shipping_cost == int(cost)
+
