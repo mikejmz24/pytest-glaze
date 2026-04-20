@@ -17,6 +17,7 @@ Coverage:
 from types import SimpleNamespace
 
 import pytest_glaze
+import re
 from pytest_glaze import FormatterPlugin, _BDDStep, c_bdd_scenario
 
 # Force ANSI codes regardless of terminal detection.
@@ -588,8 +589,9 @@ class TestBddSkipRendering:
             short_msg= "Skipped: feature flag not enabled in CI",
         )
         p._render_result(r)
-        assert any("Feature not yet implemented" in line for line in printed)
-        assert not any("test_unimplemented_feature" in line for line in printed)
+        combined = " ".join(re.sub(r"\033\[[\d;]*m", "", l) for l in printed)
+        assert "Feature not yet implemented" in combined
+        assert "test_unimplemented_feature" not in combined
 
     def test_skip_indented_as_scenario(self):
         p = _plugin()

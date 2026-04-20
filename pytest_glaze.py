@@ -738,7 +738,7 @@ class FormatterPlugin:
             color_fn      = _OUTCOME_COLOR["skipped"]
             badge         = _BADGE["skipped"]
             scenario_name = self._bdd_scenario_names[r.nodeid]
-            self._p(f"    {color_fn('---')} {badge}  {c_dim('Scenario:')} {scenario_name}")
+            self._p(f"    {color_fn('---')} {badge}  {color_fn(f'Scenario: {scenario_name}')}")
             if r.short_msg:
                 colored = LineColorizer.color_e_line(r.short_msg, "skipped", is_first=True)
                 self._p(f"      {c_emsg('E')}  {colored}")
