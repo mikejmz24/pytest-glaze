@@ -313,24 +313,7 @@ By default pytest-glaze renders BDD scenarios in compact mode — one line
 per scenario. Failures and errors always show full step-by-step output so
 you can see exactly where things went wrong.
 
-```
-tests/bdd/test_checkout.py
-  Feature: Shopping cart checkout
-    --- PASS  Scenario: Guest completes a purchase          0.3ms
-    --- PASS  Scenario: Logged-in user applies a gift card  0.2ms
-
-    Scenario: Discount code reduces the cart total
-      --- PASS  Given the cart total is 100                 0.0ms
-      --- PASS  When a 10 percent discount is applied       0.0ms
-      --- FAIL  Then the cart total is 90                   0.1ms
-        E  assert 95.0 == 90
-
-    --- PASS  Scenario: Authenticated user checks out       0.1ms
-    --- SKIP  Scenario: Feature not yet implemented
-      E  Skipped: feature flag not enabled in CI
-    --- XFAIL Scenario: Known bug in promo stacking         0.1ms
-  => 3 passed, 1 failed, 1 skipped, 1 xfailed
-```
+![pytest-glaze compact BDD mode](demo_compact.svg)
 
 ### Full step-by-step mode (`--bdd-steps`)
 
@@ -340,21 +323,7 @@ Pass `--bdd-steps` to see every step for every scenario:
 pytest --glaze --bdd-steps tests/bdd/
 ```
 
-```
-tests/bdd/test_checkout.py
-  Feature: Shopping cart checkout
-    Scenario: Guest completes a purchase
-      --- PASS  Given the cart contains 2 items             0.0ms
-      --- PASS  When the guest submits valid payment         0.0ms
-      --- PASS  Then the order confirmation is shown         0.0ms
-
-    Scenario: Logged-in user applies a gift card
-      --- PASS  Given the user is authenticated              0.0ms
-      --- PASS  And a gift card with 25 credit exists        0.0ms
-      --- PASS  When the gift card is redeemed               0.0ms
-      --- PASS  Then the balance is deducted from the total  0.0ms
-      --- PASS  But the original price is shown as reference 0.0ms
-```
+![pytest-glaze --bdd-steps mode](demo_steps.svg)
 
 ### Supported scenario types
 
