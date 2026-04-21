@@ -620,6 +620,7 @@ class FormatterPlugin:
         self._bdd_pending_file:        Optional[str] = None
         self._bdd_steps_mode: bool = False # True = --bdd-steps flsg, False = compact
         self._bdd_last_was_full_step: bool = False
+        self._cur_class: Optional[str] = None  # tracks current test class for grouping
 
     # ── I/O ───────────────────────────────────────────────────────────────────
 
@@ -699,6 +700,9 @@ class FormatterPlugin:
         self._file_buf          = []
         # self._bdd_cur_feature   = None   # reset so Feature header re-prints for new file
         # self._bdd_first_in_file = True
+        self._cur_file  = file
+        self._file_buf  = []
+        self._cur_class = None   # ← add this line
         self._p(file)
 
     def _flush_file_summary(self) -> None:
@@ -772,7 +776,19 @@ class FormatterPlugin:
         badge    = _BADGE.get(r.outcome, r.outcome.upper())
         color_fn = _OUTCOME_COLOR.get(r.outcome, c_dim)
         dur      = c_dim(f"  {r.duration * 1000:.1f}ms")
-        self._p(f"  {color_fn('---')} {badge}  {r.name}{dur}")
+
+        # Split class::method if present
+        if "::" in r.name:
+            class_name, method_name = r.name.split("::", 1)
+            if class_name != self._cur_class:
+                self._p(f"  {class_name}")
+                self._cur_class = class_name
+            display_name = method_name
+        else:
+            self._cur_class = None
+            display_name = r.name
+
+        self._p(f"  {color_fn('---')} {badge}  {display_name}{dur}")
 
         if r.short_msg:
             lines = [

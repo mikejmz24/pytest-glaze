@@ -178,3 +178,80 @@ class TestExtractShort:
         result = FormatterPlugin.extract_short(r, "error")
         assert result == "First non-blank"
 
+        # ── class grouping ────────────────────────────────────────────────────────────
+
+class TestClassGrouping:
+    """Class-based tests render with a class header and indented method names."""
+
+    def _make_result(self, name, outcome="passed"):
+        from pytest_glaze import TestResult
+        return TestResult(
+            nodeid   = f"tests/test_parsers.py::{name}",
+            file     = "tests/test_parsers.py",
+            name     = name,
+            outcome  = outcome,
+            duration = 0.1,
+            short_msg= None,
+        )
+
+    def test_class_header_printed_on_first_method(self):
+        p = FormatterPlugin()
+        printed = []
+        p._p = lambda t="": printed.append(t)
+        p._open_file_group("tests/test_parsers.py")
+        printed.clear()
+        p._render_result(self._make_result("TestParseAssert::test_simple_int_equality"))
+        assert any("TestParseAssert" in l and "::" not in l for l in printed)
+
+    def test_method_name_only_on_result_line(self):
+        p = FormatterPlugin()
+        printed = []
+        p._p = lambda t="": printed.append(t)
+        p._open_file_group("tests/test_parsers.py")
+        printed.clear()
+        p._render_result(self._make_result("TestParseAssert::test_simple_int_equality"))
+        result_lines = [l for l in printed if "PASS" in l or "---" in l]
+        assert result_lines
+        assert all("TestParseAssert" not in l for l in result_lines)
+        assert any("test_simple_int_equality" in l for l in result_lines)
+
+    def test_class_header_not_repeated_for_same_class(self):
+        p = FormatterPlugin()
+        printed = []
+        p._p = lambda t="": printed.append(t)
+        p._open_file_group("tests/test_parsers.py")
+        p._render_result(self._make_result("TestParseAssert::test_a"))
+        printed.clear()
+        p._render_result(self._make_result("TestParseAssert::test_b"))
+        assert not any("TestParseAssert" in l for l in printed)
+
+    def test_new_class_prints_new_header(self):
+        p = FormatterPlugin()
+        printed = []
+        p._p = lambda t="": printed.append(t)
+        p._open_file_group("tests/test_parsers.py")
+        p._render_result(self._make_result("TestParseAssert::test_a"))
+        printed.clear()
+        p._render_result(self._make_result("TestParseBareAssert::test_b"))
+        assert any("TestParseBareAssert" in l for l in printed)
+
+    def test_non_class_test_no_header(self):
+        p = FormatterPlugin()
+        printed = []
+        p._p = lambda t="": printed.append(t)
+        p._open_file_group("tests/test_parsers.py")
+        printed.clear()
+        p._render_result(self._make_result("test_standalone"))
+        assert not any("::" in l for l in printed)
+        assert any("test_standalone" in l for l in printed)
+
+    def test_class_reset_on_new_file(self):
+        p = FormatterPlugin()
+        printed = []
+        p._p = lambda t="": printed.append(t)
+        p._open_file_group("tests/test_parsers.py")
+        p._render_result(self._make_result("TestParseAssert::test_a"))
+        p._open_file_group("tests/test_colorizer.py")
+        printed.clear()
+        p._render_result(self._make_result("TestParseAssert::test_b"))
+        assert any("TestParseAssert" in l for l in printed)

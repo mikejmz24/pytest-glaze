@@ -292,7 +292,28 @@ Total: 4 passed, 1 failed  in 0.42s
 
 </details>
 
----
+<details>
+<summary><strong>Class-based test grouping</strong></summary>
+
+```
+tests/test_parsers.py
+TestParseAssert
+--- PASS  test_simple_int_equality                     0.1ms
+--- PASS  test_simple_float_equality                   0.1ms
+--- PASS  test_simple_string_equality                  0.1ms
+--- FAIL  test_assert_without_operator_returns_none    0.1ms
+E  assert False
+TestParseBareAssert
+--- PASS  test_false                                   0.1ms
+--- PASS  test_none                                    0.2ms
+--- PASS  test_variable_name                           0.1ms
+=> 6 passed, 1 failed
+```
+
+Class names render as section headers. Method names render without the class prefix.
+Non-class tests render as before — no header, just the test name.
+
+## </details>
 
 ## BDD support (pytest-bdd)
 
