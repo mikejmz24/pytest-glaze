@@ -68,6 +68,7 @@ markers = [
     "bronze: bronze tier examples",
     "gold: gold tier examples",
 ]
+filterwarnings = ["ignore::pytest.PytestCollectionWarning"]
 
 [tool.pylint.format]
 max-line-length = 100

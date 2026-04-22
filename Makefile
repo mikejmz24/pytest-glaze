@@ -57,7 +57,7 @@ _BDD_KFLAG := $(if $(SCENARIO),-k "$(SCENARIO)",$(if $(FEATURE),-k "$(FEATURE)",
 
 # ── Primary targets ───────────────────────────────────────────────────────────
 
-.PHONY: test test-fast test-corpus test-bdd test-bdd-steps test-bdd-gherkin \
+.PHONY: test test-acceptance test-fast test-corpus test-bdd test-bdd-steps test-bdd-gherkin \
 				test-bdd-gherkin-vv test-bdd-json test-bdd-json-expanded \
 				test-unit test-raw help
 
@@ -70,6 +70,10 @@ _BDD_KFLAG := $(if $(SCENARIO),-k "$(SCENARIO)",$(if $(FEATURE),-k "$(FEATURE)",
 ##                     make test K="sprint and not slow"
 test:
 	@PYTHONPATH=. $(PYTEST) $(FMT) $(_PATH) $(_KFLAG) $(ARGS)
+
+## test-acceptance  Run acceptance tests (BDD specs for glaze rendering behavior).
+test-acceptance:
+	@PYTHONPATH=. $(PYTEST) $(FMT) tests/corpus/acceptance/ $(ARGS)
 
 ## test-fast         Stop on first failure (-x). Accepts same filters as `test`.
 test-fast:
