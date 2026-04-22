@@ -45,14 +45,14 @@ _KFLAG := $(if $(K),-k "$(K)",$(if $(CASE),-k "$(CASE)",))
 #   FILE + SCENARIO can be combined to narrow scope:
 #             make test-bdd-gherkin FILE=test_bdd SCENARIO="Guest completes a purchase"
 
-BDD_TESTS := tests/bdd/
+BDD_TESTS := tests/corpus/bdd/
 
 
 FILE     ?=
 FEATURE  ?=
 SCENARIO ?=
 
-_BDD_PATH  := $(if $(FILE),tests/bdd/$(FILE).py,$(BDD_TESTS))
+_BDD_PATH  := $(if $(FILE),tests/corpus/bdd/$(FILE).py,$(BDD_TESTS))
 _BDD_KFLAG := $(if $(SCENARIO),-k "$(SCENARIO)",$(if $(FEATURE),-k "$(FEATURE)",))
 
 # ── Primary targets ───────────────────────────────────────────────────────────
