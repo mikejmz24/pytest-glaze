@@ -3,7 +3,6 @@ tests/corpus/acceptance/test_glaze_rendering.py — Acceptance tests for pytest-
 """
 from __future__ import annotations
 
-import re
 from typing import List
 
 import pytest
@@ -12,41 +11,16 @@ from pytest_bdd import given, parsers, scenario, then, when
 from pytest_glaze import FormatterPlugin
 from pytest_glaze._types import TestResult
 
-GREEN        = "\033[92m"
-BRIGHT_RED   = "\033[91m"
-YELLOW       = "\033[93m"
-STANDARD_RED = "\033[31m"
-SOFT_PEACH   = "\033[0;38;2;252;205;174m"
-DIM          = "\033[2m"
-
-
-def strip_ansi(text: str) -> str:
-    return re.sub(r"\033\[[\d;]*m?", "", text)
-
-
-def is_colorless(text: str) -> bool:
-    return not re.search(r"\033\[[\d;]*m", text)
+from tests.helpers import (
+    GREEN, BRIGHT_RED, YELLOW, STANDARD_RED, SOFT_PEACH, DIM,
+    strip_ansi, is_colorless,
+    _make_result, name_is_uncolored
+)
 
 
 @pytest.fixture
 def plugin() -> FormatterPlugin:
-    import pytest_glaze._colors as colors
-    colors._NO_COLOR = False
     return FormatterPlugin()
-
-
-def _make_result(
-    name: str = "test_example",
-    outcome: str = "passed",
-    short_msg: str | None = None,
-    duration: float = 0.1,
-    sections: list | None = None,
-    file: str = "tests/test_example.py",
-) -> TestResult:
-    return TestResult(
-        nodeid=f"{file}::{name}", file=file, name=name, outcome=outcome,
-        duration=duration, short_msg=short_msg, sections=sections or [],
-    )
 
 
 def _render_one(plugin: FormatterPlugin, result: TestResult) -> List[str]:
@@ -500,35 +474,17 @@ def duration_is_dim(printed, dur):
 def assert_name_colorless(printed, name):
     result_lines = [l for l in printed if "---" in strip_ansi(l) and name in strip_ansi(l)]
     assert result_lines, f"No result line containing '{name}' found"
-    for line in result_lines:
-        segments = re.split(r"(\033\[[\d;]*m)", line)
-        in_color = False
-        for seg in segments:
-            if re.match(r"\033\[[\d;]*m", seg):
-                in_color = seg != "\033[0m"
-            elif name in seg and not in_color:
-                return
-        pytest.fail(f"'{name}' appears colored in: {line!r}")
+    assert any(name_is_uncolored(l, name) for l in result_lines), \
+        f"'{name}' appears colored in: {result_lines[0]!r}"
+
 
 @then("the test name has no color applied")
-def assert_name_no_color_generic(printed):
-    result_lines = [l for l in printed if "---" in strip_ansi(l)]
-    assert result_lines
-    for line in result_lines:
-        # The test name is whatever comes after the badge — check it's uncolored
-        plain = strip_ansi(line)
-        badge_end = plain.index("  ", plain.index("---") + 3) + 2
-        name_part = plain[badge_end:].strip()
-        # Strip duration (last token)
-        name_only = name_part.rsplit("  ", 1)[0].strip()
-        segments = re.split(r"(\033\[[\d;]*m)", line)
-        in_color = False
-        for seg in segments:
-            if re.match(r"\033\[[\d;]*m", seg):
-                in_color = seg != "\033[0m"
-            elif name_only in seg and not in_color:
-                return
-        pytest.fail(f"Test name appears colored in: {line!r}")
+def assert_name_no_color_generic(printed, result):
+    name = result.name.split("::")[-1] if "::" in result.name else result.name
+    result_lines = [l for l in printed if "---" in strip_ansi(l) and name in strip_ansi(l)]
+    assert result_lines, f"No result line containing '{name}' found"
+    assert any(name_is_uncolored(l, name) for l in result_lines), \
+        f"'{name}' appears colored in: {result_lines[0]!r}"
 
 @then(parsers.parse('the class name "{cls}" has no color applied'))
 def class_name_colorless(printed, cls):

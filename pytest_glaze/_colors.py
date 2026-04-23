@@ -14,7 +14,7 @@ _NO_COLOR = not sys.stdout.isatty() or bool(os.environ.get("NO_COLOR"))
 
 # ── ANSI palette ──────────────────────────────────────────────────────────────
 
-_RED_SOFT      = "0;38;2;252;205;174"   # 24-bit peach — c_emsg / context lines
+_SOFT_PEACH      = "0;38;2;252;205;174"   # 24-bit peach — c_emsg / context lines
 _BRIGHT_GREEN  = "92"
 _BRIGHT_RED    = "91"
 _BRIGHT_YELLOW = "93"
@@ -66,7 +66,7 @@ def c_xpass(t: str) -> str:
 
 def c_emsg(t: str) -> str:
     """Peach / soft red — E-line messages, context lines, assert keywords."""
-    return _esc(_RED_SOFT, t)
+    return _esc(_SOFT_PEACH, t)
 
 
 def c_section(t: str) -> str:

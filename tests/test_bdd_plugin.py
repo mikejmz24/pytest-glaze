@@ -17,12 +17,8 @@ Coverage:
 from types import SimpleNamespace
 
 import pytest_glaze
-import re
 from pytest_glaze import FormatterPlugin, _BDDStep, c_bdd_scenario
-
-# Force ANSI codes regardless of terminal detection.
-pytest_glaze._NO_COLOR = False
-
+from tests.helpers import (strip_ansi, _make_result)
 
 # ── Stubs ─────────────────────────────────────────────────────────────────────
 
@@ -580,16 +576,11 @@ class TestBddSkipRendering:
         printed = []
         p._p = lambda t="": printed.append(t)
         from pytest_glaze import TestResult
-        r = TestResult(
-            nodeid   = "tests/bdd/test_checkout.py::test_unimplemented_feature",
-            file     = "tests/bdd/test_checkout.py",
-            name     = "test_unimplemented_feature",
-            outcome  = "skipped",
-            duration = 0.1,
-            short_msg= "Skipped: feature flag not enabled in CI",
-        )
+        r = _make_result("test_unimplemented_feature", "skipped",
+                 "Skipped: feature flag not enabled in CI",
+                 file="tests/bdd/test_checkout.py")
         p._render_result(r)
-        combined = " ".join(re.sub(r"\033\[[\d;]*m", "", l) for l in printed)
+        combined = " ".join(strip_ansi(l) for l in printed)
         assert "Feature not yet implemented" in combined
         assert "test_unimplemented_feature" not in combined
 
@@ -599,14 +590,8 @@ class TestBddSkipRendering:
         printed = []
         p._p = lambda t="": printed.append(t)
         from pytest_glaze import TestResult
-        r = TestResult(
-            nodeid="tests/bdd/test_checkout.py::test_skip",
-            file="tests/bdd/test_checkout.py",
-            name="test_skip",
-            outcome="skipped",
-            duration=0.1,
-            short_msg="Skipped: reason",
-        )
+        r = _make_result("test_skip", "skipped", "Skipped: reason",
+                 file="tests/bdd/test_checkout.py")
         p._render_result(r)
         skip_line = next(l for l in printed if "My Scenario" in l)
         assert skip_line.startswith("    ")  # indented under Feature level
@@ -669,8 +654,7 @@ class TestBddCompactMode:
         p._p = lambda t="": printed.append(t)
         p._bdd_flush_scenario("passed", None)
         # Scenario name must be colored — strip ANSI to check plain text
-        import re
-        combined = " ".join(re.sub(r"\033\[[\d;]*m", "", l) for l in printed)
+        combined = " ".join(strip_ansi(l) for l in printed)
         assert "Guest completes a purchase" in combined
 
     def test_compact_pass_shows_pass_badge(self):
@@ -866,14 +850,9 @@ class TestBddSkipFeatureHeader:
         printed = []
         p._p = lambda t="": printed.append(t)
         from pytest_glaze import TestResult
-        r = TestResult(
-            nodeid   = "tests/bdd/test_checkout.py::test_unimplemented_feature",
-            file     = "tests/bdd/test_checkout.py",
-            name     = "test_unimplemented_feature",
-            outcome  = "skipped",
-            duration = 0.1,
-            short_msg= "Skipped: feature flag not enabled in CI",
-        )
+        r = _make_result("test_unimplemented_feature", "skipped",
+                 "Skipped: feature flag not enabled in CI",
+                 file="tests/bdd/test_checkout.py")
         p._render_result(r)
         assert any("Shopping cart checkout" in l for l in printed)
         assert any("Feature not yet implemented" in l for l in printed)
@@ -892,14 +871,9 @@ class TestBddSkipFeatureHeader:
         printed = []
         p._p = lambda t="": printed.append(t)
         from pytest_glaze import TestResult
-        r = TestResult(
-            nodeid   = "tests/bdd/test_checkout.py::test_unimplemented_feature",
-            file     = "tests/bdd/test_checkout.py",
-            name     = "test_unimplemented_feature",
-            outcome  = "skipped",
-            duration = 0.1,
-            short_msg= "Skipped: reason",
-        )
+        r = _make_result("test_unimplemented_feature", "skipped",
+                 "Skipped: feature flag not enabled in CI",
+                 file="tests/bdd/test_checkout.py")
         p._render_result(r)
         feature_lines = [l for l in printed if "Shopping cart checkout" in l]
         assert len(feature_lines) == 0
@@ -915,15 +889,9 @@ class TestBddTeardownError:
         p._bdd_handled.add("tests/bdd/test_edge_cases.py::test_teardown_failure")
         printed = []
         p._p = lambda t="": printed.append(t)
-        from pytest_glaze import TestResult
-        r = TestResult(
-            nodeid   = "tests/bdd/test_edge_cases.py::test_teardown_failure",
-            file     = "tests/bdd/test_edge_cases.py",
-            name     = "test_teardown_failure",
-            outcome  = "error",
-            duration = 0.1,
-            short_msg= "RuntimeError: cleanup failed: could not release resource lock",
-        )
+        r = _make_result("test_teardown_failure", "error",
+                 "RuntimeError: cleanup failed",
+                 file="tests/bdd/test_edge_cases.py")
         p._render_result(r)
         assert any("teardown" in l.lower() for l in printed)
         assert any("RuntimeError" in l for l in printed)
@@ -935,13 +903,8 @@ class TestBddTeardownError:
         p._bdd_scenario_buf = []  # already flushed
         p._p = lambda t="": None
         from pytest_glaze import TestResult
-        r = TestResult(
-            nodeid   = "tests/bdd/test_edge_cases.py::test_teardown_failure",
-            file     = "tests/bdd/test_edge_cases.py",
-            name     = "test_teardown_failure",
-            outcome  = "error",
-            duration = 0.1,
-            short_msg= "RuntimeError: cleanup failed",
-        )
+        r = _make_result("test_teardown_failure", "error",
+                 "RuntimeError: cleanup failed",
+                 file="tests/bdd/test_edge_cases.py")
         p._render_result(r)
         assert p._bdd_scenario_buf == []  # buffer untouched

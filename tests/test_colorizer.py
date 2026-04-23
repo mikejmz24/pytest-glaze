@@ -11,30 +11,17 @@ Coverage:
   color_e_line        — every dispatch branch: skip, diff, first-line,
                         context comparisons, label lines, approx table rows
 """
-import re
-
 from pytest_glaze import LineColorizer
-
-# ── ANSI color constants ───────────────────────────────────────────────────────
-# Kept here rather than conftest.py: only coloring tests inspect escape codes.
-
-GREEN        = "\033[92m"
-BRIGHT_RED   = "\033[91m"   # c_fail  — received values, FAIL badge
-STANDARD_RED = "\033[31m"   # c_error — ERROR badge, collection errors
-SOFT_RED     = "\033[0;38;2;252;205;174m"  # c_emsg — peach, context lines
-RED          = "\033[91m"   # alias for BRIGHT_RED used in diff-line tests
-YELLOW       = "\033[93m"
+from tests.helpers import (
+    GREEN, BRIGHT_RED, YELLOW, STANDARD_RED, SOFT_PEACH, DIM,
+    BABY_BLUE, STEEL_BLUE,
+    strip_ansi,
+)
 
 
 def has_color(text: str, code: str) -> bool:
-    """Return True if text contains the given ANSI escape code."""
+    """Return True if text contains the given ANSI escape code (by number)."""
     return f"\033[{code}m" in text
-
-
-def strip_ansi(text: str) -> str:
-    """Remove all ANSI escape sequences from text."""
-    return re.sub(r"\033\[[\d;]*m?", "", text)
-
 
 # ── color_assert_line ─────────────────────────────────────────────────────────
 
@@ -56,9 +43,9 @@ class TestColorAssertLine:
         result = LineColorizer.color_assert_line("assert 3 == 30")
         assert GREEN in result
 
-    def test_assert_keyword_is_soft_red(self):
+    def test_assert_keyword_is_soft_peach(self):
         result = LineColorizer.color_assert_line("assert 3 == 30")
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
     def test_plain_text_preserved(self):
         result = strip_ansi(LineColorizer.color_assert_line("assert 3 == 30"))
@@ -74,10 +61,10 @@ class TestColorAssertLine:
         assert "INTGPT-109" in result
         assert "INTGPT-1091" in result
 
-    def test_unparseable_falls_back_to_soft_red(self):
+    def test_unparseable_falls_back_to_soft_peach(self):
         line = "got 5, expected 15"
         result = LineColorizer.color_assert_line(line)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
         assert strip_ansi(result) == line
 
     def test_string_comparison(self):
@@ -144,22 +131,22 @@ class TestColorELineSkipAndDiff:
         result = LineColorizer.color_e_line("- INTGPT-1091", "failed", is_first=False)
         assert GREEN in result
 
-    def test_plus_line_is_red(self):
+    def test_plus_line_is_bright_red(self):
         """'+' lines carry received content — must be red."""
         result = LineColorizer.color_e_line("+ INTGPT-109", "failed", is_first=False)
-        assert RED in result
+        assert BRIGHT_RED in result
 
-    def test_question_line_is_soft_red(self):
+    def test_question_line_is_soft_peach(self):
         result = LineColorizer.color_e_line("?           -", "failed", is_first=False)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
     def test_lone_minus_is_green(self):
         result = LineColorizer.color_e_line("-", "failed", is_first=False)
         assert GREEN in result
 
-    def test_lone_plus_is_red(self):
+    def test_lone_plus_is_bright_red(self):
         result = LineColorizer.color_e_line("+", "failed", is_first=False)
-        assert RED in result
+        assert BRIGHT_RED in result
 
 
 # ── color_e_line: first-line behavior ────────────────────────────────────────
@@ -179,24 +166,24 @@ class TestColorELineFirstLine:
         assert BRIGHT_RED in result
         assert GREEN in result
 
-    def test_first_exception_line_is_soft_red(self):
+    def test_first_exception_line_is_soft_peach(self):
         result = LineColorizer.color_e_line(
             "AttributeError: 'NoneType' object has no attribute 'get'",
             "failed", is_first=True,
         )
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
         assert BRIGHT_RED not in result
 
-    def test_first_runtime_error_is_soft_red(self):
+    def test_first_runtime_error_is_soft_peach(self):
         result = LineColorizer.color_e_line(
             "RuntimeError: Setup exploded intentionally", "failed", is_first=True,
         )
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
         assert BRIGHT_RED not in result
 
-    def test_error_outcome_first_line_is_soft_red(self):
+    def test_error_outcome_first_line_is_soft_peach(self):
         result = LineColorizer.color_e_line("RuntimeError: Setup exploded", "error", is_first=True)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
     def test_first_error_line_is_not_bright_red(self):
         """Exception first-lines must be soft red, never bright red."""
@@ -265,13 +252,13 @@ class TestColorELineFirstLine:
 class TestColorELineContext:
     """color_e_line: non-first (context) lines and cross-cutting color rules."""
 
-    def test_non_first_line_is_soft_red(self):
+    def test_non_first_line_is_soft_peach(self):
         result = LineColorizer.color_e_line("At index 0 diff:", "failed", is_first=False)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
-    def test_differing_items_context_is_soft_red(self):
+    def test_differing_items_context_is_soft_peach(self):
         result = LineColorizer.color_e_line("Differing items:", "failed", is_first=False)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
     def test_context_comparison_received_is_bright_red(self):
         """Dict diff: {'b': 2} != {'b': 999} — received (left) is bright red."""
@@ -290,9 +277,9 @@ class TestColorELineContext:
         assert "!=" in plain
         assert "{'b': 999}" in plain
 
-    def test_xfailed_first_line_is_soft_red(self):
+    def test_xfailed_first_line_is_soft_peach(self):
         result = LineColorizer.color_e_line("xfailed: known bug", "xfailed", is_first=False)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
     def test_context_line_is_not_bright_red(self):
         """Prose context lines must never use bright red."""
@@ -306,13 +293,13 @@ class TestColorELineContext:
         assert strip_ansi(result) == line
         assert BRIGHT_RED in result  # 'Global Launch' (received) is red
         assert GREEN in result       # 'Global Launches' (expected) is green
-        assert SOFT_RED in result    # prefix 'At index 0 diff: ' is soft red
+        assert SOFT_PEACH in result    # prefix 'At index 0 diff: ' is soft red
 
     def test_comparison_prefix_comes_before_red_in_output(self):
         """Prose prefix (soft red) must appear before the received value (bright red)."""
         line = "At index 0 diff: 'Global Launch' != 'Global Launches'"
         result = LineColorizer.color_e_line(line, "failed", is_first=False)
-        assert result.find(SOFT_RED) < result.find(BRIGHT_RED)
+        assert result.find(SOFT_PEACH) < result.find(BRIGHT_RED)
 
     def test_extra_items_left_not_colored(self):
         """'Extra items in the left set:' — prose 'in' must not trigger comparison."""
@@ -321,7 +308,7 @@ class TestColorELineContext:
         )
         assert GREEN not in result
         assert BRIGHT_RED not in result
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
     def test_extra_items_right_not_colored(self):
         result = LineColorizer.color_e_line(
@@ -346,14 +333,14 @@ class TestLabelColors:
         assert GREEN in result
         assert BRIGHT_RED not in result
 
-    def test_obtained_label_is_soft_red(self):
+    def test_obtained_label_is_soft_peach(self):
         """The 'Obtained: ' label itself must be soft red, not bright red."""
         result = LineColorizer.color_e_line("Obtained: 3.141592653589793", "failed", is_first=False)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
-    def test_expected_label_is_soft_red(self):
+    def test_expected_label_is_soft_peach(self):
         result = LineColorizer.color_e_line("Expected: 3.14 ± 0.001", "failed", is_first=False)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
 
     def test_obtained_plain_text_preserved(self):
         result = LineColorizer.color_e_line("Obtained: 3.141592653589793", "failed", is_first=False)
@@ -417,11 +404,11 @@ class TestApproxTableRowColors:
         assert GREEN in result
         assert strip_ansi(result) == row
 
-    def test_header_row_is_soft_red_only(self):
+    def test_header_row_is_soft_peach_only(self):
         """Header must stay soft red — no false green or bright red."""
         header = "Index | Obtained            | Expected"
         result = LineColorizer.color_e_line(header, "failed", is_first=False)
-        assert SOFT_RED in result
+        assert SOFT_PEACH in result
         assert GREEN not in result
         assert BRIGHT_RED not in result
 
