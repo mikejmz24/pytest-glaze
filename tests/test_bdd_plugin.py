@@ -7,7 +7,7 @@ All methods tested in pure isolation by inspecting _bdd_scenario_buf directly
 rather than capturing printed output.
 
 Coverage:
-  _extract_exception_msg    — exception → concise E-line string
+  extract_exception_msg    — exception → concise E-line string
   _bdd_before_scenario      — Feature/Scenario header buffering, blank line rules
   _bdd_after_step           — PASS step buffering, handled set, last_step_idx
   _bdd_step_error           — FAIL/ERROR step buffering, message capture
@@ -17,7 +17,7 @@ Coverage:
 from types import SimpleNamespace
 
 import pytest_glaze
-from pytest_glaze import FormatterPlugin, _BDDStep, c_bdd_scenario
+from pytest_glaze import (FormatterPlugin, _BDDStep, c_bdd_scenario, register_plugin)
 from tests.helpers import (strip_ansi, _make_result)
 
 # ── Stubs ─────────────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ from tests.helpers import (strip_ansi, _make_result)
 def _plugin() -> FormatterPlugin:
     """Fresh FormatterPlugin with _glaze_plugin wired up."""
     p = FormatterPlugin()
-    pytest_glaze._glaze_plugin = p
+    register_plugin(p)
     return p
 
 
@@ -55,43 +55,43 @@ def _buf_steps(p: FormatterPlugin) -> list:
     return [item for item in p.bdd.scenario_buf if isinstance(item, _BDDStep)]
 
 
-# ── _extract_exception_msg ────────────────────────────────────────────────────
+# ── extract_exception_msg ────────────────────────────────────────────────────
 
 class TestExtractExceptionMsg:
-    """Tests for FormatterPlugin._extract_exception_msg()."""
+    """Tests for FormatterPlugin.extract_exception_msg()."""
 
     def test_assertion_error_does_not_prepend_type_name(self):
         # pytest assertion rewriting already includes 'assert' in the message.
-        # _extract_exception_msg preserves it as-is without prepending 'AssertionError:'.
-        msg = FormatterPlugin._extract_exception_msg(AssertionError("assert 95.0 == 90"))
+        # extract_exception_msg preserves it as-is without prepending 'AssertionError:'.
+        msg = FormatterPlugin.extract_exception_msg(AssertionError("assert 95.0 == 90"))
         assert msg == "assert 95.0 == 90"
 
     def test_assertion_error_includes_message_body(self):
-        msg = FormatterPlugin._extract_exception_msg(AssertionError("assert 95.0 == 90"))
+        msg = FormatterPlugin.extract_exception_msg(AssertionError("assert 95.0 == 90"))
         assert "assert 95.0 == 90" in msg
 
     def test_runtime_error_prepends_type(self):
-        msg = FormatterPlugin._extract_exception_msg(RuntimeError("inventory timed out"))
+        msg = FormatterPlugin.extract_exception_msg(RuntimeError("inventory timed out"))
         assert msg == "RuntimeError: inventory timed out"
 
     def test_connection_error_prepends_type(self):
-        msg = FormatterPlugin._extract_exception_msg(ConnectionError("could not reach db.internal"))
+        msg = FormatterPlugin.extract_exception_msg(ConnectionError("could not reach db.internal"))
         assert msg.startswith("ConnectionError:")
 
     def test_empty_exception_returns_type_name(self):
-        msg = FormatterPlugin._extract_exception_msg(RuntimeError(""))
+        msg = FormatterPlugin.extract_exception_msg(RuntimeError(""))
         assert msg == "RuntimeError"
 
     def test_multiline_trimmed_to_max_e_lines(self):
         """More than MAX_E_LINES lines must be truncated."""
         big = "\n".join(f"line {i}" for i in range(30))
-        msg = FormatterPlugin._extract_exception_msg(RuntimeError(big))
+        msg = FormatterPlugin.extract_exception_msg(RuntimeError(big))
         assert len(msg.splitlines()) == pytest_glaze.MAX_E_LINES
 
     def test_blank_lines_excluded_from_count(self):
         """Blank lines in the exception message must not count toward MAX_E_LINES."""
         lines = "\n\n".join(f"line {i}" for i in range(20))
-        msg = FormatterPlugin._extract_exception_msg(RuntimeError(lines))
+        msg = FormatterPlugin.extract_exception_msg(RuntimeError(lines))
         assert msg is not None
 
 
@@ -320,7 +320,7 @@ class TestBddFlushScenario:
     def test_passed_does_not_modify_last_step(self):
         p = _plugin()
         bdd_step = self._make_step_buf(p, "passed")
-        printed = p.flush_scenario("passed", None)
+        _ = p.flush_scenario("passed", None)
         assert bdd_step.outcome == "passed"
 
     def test_failed_does_not_modify_last_step(self):
@@ -332,13 +332,13 @@ class TestBddFlushScenario:
     def test_buffer_cleared_after_flush(self):
         p = _plugin()
         self._make_step_buf(p)
-        printed = p.flush_scenario("passed", None)
+        _ = p.flush_scenario("passed", None)
         assert p.bdd.scenario_buf == []
 
     def test_last_step_idx_reset_after_flush(self):
         p = _plugin()
         self._make_step_buf(p)
-        printed = p.flush_scenario("passed", None)
+        _ = p.flush_scenario("passed", None)
         assert p.bdd.last_step_idx == -1
 
     def test_blank_string_items_printed(self):
@@ -513,7 +513,7 @@ class TestBddScenarioNameIndexing:
             scenario_obj=scenario_obj,
         )
         session = SimpleNamespace(items=[item])
-        printed = p.flush_scenario("passed", None)
+        _ = p.flush_scenario("passed", None)
         p.pytest_collection_finish(session)
         assert p.bdd.scenario_names["tests/bdd/test_checkout.py::test_guest_purchase"] == \
             "Guest completes a purchase"
@@ -569,7 +569,6 @@ class TestBddSkipRendering:
         p.bdd.scenario_names["tests/bdd/test_checkout.py::test_unimplemented_feature"] = \
             "Feature not yet implemented"
         printed = p.flush_scenario("passed", None)
-        from pytest_glaze import TestResult
         r = _make_result("test_unimplemented_feature", "skipped",
                  "Skipped: feature flag not enabled in CI",
                  file="tests/bdd/test_checkout.py")
@@ -582,7 +581,6 @@ class TestBddSkipRendering:
         p = _plugin()
         p.bdd.scenario_names["tests/bdd/test_checkout.py::test_skip"] = "My Scenario"
         printed = p.flush_scenario("passed", None)
-        from pytest_glaze import TestResult
         r = _make_result("test_skip", "skipped", "Skipped: reason",
                  file="tests/bdd/test_checkout.py")
         printed += p.render_result(r)
@@ -600,7 +598,7 @@ class TestBddStepNotFoundMessage:
             'Line 18 in scenario "Step with no implementation" '
             'in the feature "/path/to/edge_cases.feature"'
         )
-        msg = FormatterPlugin._extract_exception_msg(Exception(long_msg))
+        msg = FormatterPlugin.extract_exception_msg(Exception(long_msg))
         assert "Line 18" not in msg
         assert "/path/to" not in msg
         assert "Step definition is not found" in msg
@@ -613,7 +611,6 @@ class TestBddCompactMode:
 
     def _make_pass_scenario(self, p, scenario_name="Guest completes a purchase"):
         """Simulate a fully passing scenario in the buffer."""
-        import time
         p.bdd.scenario_buf = [c_bdd_scenario(f"    Scenario: {scenario_name}")]
         for keyword, type_, name in [
             ("Given", "given", "the cart contains 2 items"),
@@ -765,14 +762,6 @@ class TestBddCompactSpacing:
         assert printed[-1] != ""
 
     def test_compact_to_compact_no_blank_line(self):
-        """Two consecutive compact scenarios must have no blank line between them."""
-        p = _plugin()
-        p.bdd.steps_mode = False
-        self._make_pass_scenario(p)
-        printed = p.flush_scenario("passed", None)
-        assert printed[-1] != ""  # no trailing blank line after compact
-
-    def test_compact_to_compact_no_blank_line(self):
         p = _plugin()
         p.bdd.steps_mode = False
         p.bdd.last_was_full_step = False  # previous was compact
@@ -815,7 +804,6 @@ class TestBddSkipFeatureHeader:
             "tests/bdd/test_checkout.py::test_unimplemented_feature__feature__"
         ] = "Shopping cart checkout"
         printed = p.flush_scenario("passed", None)
-        from pytest_glaze import TestResult
         r = _make_result("test_unimplemented_feature", "skipped",
                  "Skipped: feature flag not enabled in CI",
                  file="tests/bdd/test_checkout.py")
@@ -835,7 +823,6 @@ class TestBddSkipFeatureHeader:
             "tests/bdd/test_checkout.py::test_unimplemented_feature__feature__"
         ] = "Shopping cart checkout"
         printed = p.flush_scenario("passed", None)
-        from pytest_glaze import TestResult
         r = _make_result("test_unimplemented_feature", "skipped",
                  "Skipped: feature flag not enabled in CI",
                  file="tests/bdd/test_checkout.py")

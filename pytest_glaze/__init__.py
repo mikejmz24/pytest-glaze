@@ -16,6 +16,7 @@ from pytest_glaze._hooks import (
     pytest_bdd_after_step,
     pytest_bdd_step_error,
     pytest_bdd_step_func_lookup_error,
+    register_plugin
 )
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "pytest_bdd_after_step",
     "pytest_bdd_step_error",
     "pytest_bdd_step_func_lookup_error",
+    "register_plugin",
 ]

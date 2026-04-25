@@ -64,6 +64,11 @@ def pytest_bdd_step_func_lookup_error(
             request, feature, scenario, step, exception
         )
 
+def register_plugin(plugin: "FormatterPlugin") -> None:
+    """Register the active plugin instance. For testing only."""
+    global _glaze_plugin  # pylint: disable=global-statement
+    _glaze_plugin = plugin
+
 
 # ── Registration ──────────────────────────────────────────────────────────────
 

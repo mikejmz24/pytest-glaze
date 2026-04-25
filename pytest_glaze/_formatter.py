@@ -313,7 +313,7 @@ class FormatterPlugin(_FormatterTestingMixin):
     # ── BDD helpers ───────────────────────────────────────────────────────────
 
     @staticmethod
-    def _extract_exception_msg(exc: BaseException) -> Optional[str]:
+    def extract_exception_msg(exc: BaseException) -> Optional[str]:
         """Concise inline message from a step exception."""
         raw = str(exc).strip()
         if not raw:
@@ -430,7 +430,7 @@ class FormatterPlugin(_FormatterTestingMixin):
         t0        = self.bdd.step_t0.pop(id(step), time.monotonic())
         duration  = time.monotonic() - t0
         outcome   = "failed" if isinstance(exception, AssertionError) else "error"
-        short_msg = self._extract_exception_msg(exception)
+        short_msg = self.extract_exception_msg(exception)
         bdd_step  = _BDDStep(step=step, outcome=outcome, duration=duration, short_msg=short_msg)
         self.bdd.scenario_buf.append(bdd_step)
         self.bdd.last_step_idx = len(self.bdd.scenario_buf) - 1
@@ -441,7 +441,7 @@ class FormatterPlugin(_FormatterTestingMixin):
     ) -> None:
         t0        = self.bdd.step_t0.pop(id(step), time.monotonic())
         duration  = time.monotonic() - t0
-        short_msg = self._extract_exception_msg(exception)
+        short_msg = self.extract_exception_msg(exception)
         bdd_step  = _BDDStep(step=step, outcome="error", duration=duration, short_msg=short_msg)
         self.bdd.scenario_buf.append(bdd_step)
         self.bdd.last_step_idx = len(self.bdd.scenario_buf) - 1

@@ -12,11 +12,7 @@ Coverage:
                         context comparisons, label lines, approx table rows
 """
 from pytest_glaze import LineColorizer
-from tests.helpers import (
-    GREEN, BRIGHT_RED, YELLOW, STANDARD_RED, SOFT_PEACH, DIM,
-    BABY_BLUE, STEEL_BLUE,
-    strip_ansi,
-)
+from tests.helpers import GREEN, BRIGHT_RED, SOFT_PEACH, strip_ansi
 
 
 def has_color(text: str, code: str) -> bool:

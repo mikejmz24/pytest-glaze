@@ -32,6 +32,8 @@ class _BDDStep:
     outcome:   str
     duration:  float
     short_msg: Optional[str]
+    test_outcome:  str            = "passed"   # expected outcome for flush — testing only
+    test_short_msg: Optional[str] = None       # expected short_msg for flush — testing only
 
 
 @dataclass
@@ -79,6 +81,10 @@ class _BDDState:  # pylint: disable=too-many-instance-attributes
 
     # True when the last scenario was rendered in full-step mode
     last_was_full_step:  bool             = False
+
+    # Test-only fields — used by acceptance tests to set expected flush outcome
+    test_outcome:   str            = "passed"
+    test_short_msg: Optional[str]  = None
 
 
 @dataclass

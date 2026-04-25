@@ -19,7 +19,7 @@ from tests.helpers import (
     strip_ansi,
     _make_result, _make_bdd_step,
 )
-from pytest_glaze._colors import c_bdd_scenario
+from pytest_glaze._colors import c_bdd_feature, c_bdd_scenario
 
 # ── Plugin fixture ────────────────────────────────────────────────────────────
 
@@ -255,7 +255,6 @@ def passing_scenario_named_step(plugin, keyword, name):
 
 @given(parsers.parse('a BDD scenario in feature "{feature_name}"'), target_fixture="bdd_scenario")
 def scenario_in_feature(plugin, feature_name):
-    from pytest_glaze._colors import c_bdd_feature, c_bdd_scenario
     plugin.bdd.scenario_buf = [
         c_bdd_feature(f"  Feature: {feature_name}"),
         c_bdd_scenario("    Scenario: Guest completes a purchase"),
@@ -271,7 +270,6 @@ def scenario_in_feature(plugin, feature_name):
 @given("two BDD scenarios in the same feature \"Shopping cart checkout\"",
        target_fixture="bdd_scenario")
 def two_scenarios_same_feature(plugin):
-    from pytest_glaze._colors import c_bdd_feature, c_bdd_scenario
     plugin.bdd.scenario_buf = [
         c_bdd_feature("  Feature: Shopping cart checkout"),
         c_bdd_scenario("    Scenario: Scenario A"),
@@ -363,7 +361,6 @@ def process_scenario_steps_mode(plugin, bdd_scenario):
 
 @when("pytest-glaze processes the same feature twice", target_fixture="printed")
 def process_same_feature_twice(plugin, bdd_scenario):
-    from pytest_glaze._colors import c_bdd_scenario
     lines = plugin.flush_scenario(plugin._test_outcome, plugin._test_short_msg)
     plugin.bdd.scenario_buf = [
         c_bdd_scenario("    Scenario: Scenario B"),
@@ -377,7 +374,6 @@ def process_same_feature_twice(plugin, bdd_scenario):
 
 @when("pytest-glaze processes both scenarios", target_fixture="printed")
 def process_both_scenarios(plugin, bdd_scenario, second_scenario):
-    from pytest_glaze._colors import c_bdd_feature, c_bdd_scenario
     lines = plugin.flush_scenario(plugin._test_outcome, plugin._test_short_msg)
     plugin.bdd.scenario_buf = [
         "",
