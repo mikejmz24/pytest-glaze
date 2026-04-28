@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest_glaze
 from pytest_glaze import FormatterPlugin
-from tests.helpers import _make_result
+from tests.helpers import (_make_result, strip_ansi)
 
 
 # ── split_nodeid ──────────────────────────────────────────────────────────────
@@ -232,3 +232,47 @@ class TestClassGrouping:
         p.render_result(self._make_result("TestParseAssert::test_a"))
         printed = p.render_result(self._make_result("TestParseBareAssert::test_b"))
         assert printed[0] == ""  # blank line before new class header
+
+class TestTerminalSafety:
+    """ANSI escape sequences in test names must not corrupt terminal output."""
+
+    def test_ansi_in_test_name_stripped_before_render(self):
+        p = FormatterPlugin()
+        result = _make_result(
+            name="\033[2Jtest_evil",
+            file="tests/test_evil.py"
+        )
+        printed = p.render_result(result)
+        result_line = next(l for l in printed if "---" in strip_ansi(l))
+        # Control sequence must not appear in output
+        assert "\033[2J" not in result_line
+
+    def test_ansi_in_short_msg_stripped_before_render(self):
+        p = FormatterPlugin()
+        result = _make_result(
+            name="test_evil",
+            outcome="failed",
+            short_msg="\033[2JAssertionError: clear screen attack",
+            file="tests/test_evil.py",
+        )
+        printed = p.render_result(result)
+        e_lines = [l for l in printed if "E  " in strip_ansi(l)]
+        assert e_lines
+        assert not any("\033[2J" in l for l in e_lines)
+
+    def test_ansi_in_class_name_stripped(self):
+        p = FormatterPlugin()
+        result = _make_result(
+            name="\033[2JTestEvil::test_method",
+            file="tests/test_evil.py"
+        )
+        printed = p.render_result(result)
+        assert not any("\033[2J" in l for l in printed)
+
+    def test_legitimate_colors_preserved(self):
+        """Sanitization must not strip our own color codes from rendered output."""
+        p = FormatterPlugin()
+        result = _make_result(outcome="failed", short_msg="assert 3 == 30")
+        printed = p.render_result(result)
+        # Our color codes must still be present
+        assert any("\033[" in l for l in printed)

@@ -5,6 +5,7 @@ Fully independent of pytest internals — operates on plain strings.
 Depends only on _colors and _types.
 """
 from __future__ import annotations
+import re
 
 from typing import Optional, Tuple
 
@@ -365,3 +366,12 @@ class LineColorizer:
         if line.startswith("? "):
             return c_emsg(line)
         return None
+
+    @staticmethod
+    def sanitize(text: str) -> str:
+        """Strip ANSI escape sequences from untrusted input (test names, messages).
+        
+        Prevents malicious test names from injecting terminal control sequences
+        into the formatter output.
+        """
+        return re.sub(r"\033\[[\d;]*[a-zA-Z]", "", text)

@@ -47,7 +47,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-include = ["pytest_glaze.py"]
+packages = ["pytest_glaze"]
 
 [tool.pylint.main]
 ignore = [".venv", "__pycache__"]
@@ -61,6 +61,7 @@ disable = [
 ]
 
 [tool.pytest.ini_options]
+addopts = "-p pytester"
 markers = [
     "smoke: quick health check scenarios",
     "regression: full regression suite scenarios",

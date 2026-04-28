@@ -6,6 +6,7 @@ Depends on _types, _colors, and _colorizer. No direct dependency on _hooks.
 from __future__ import annotations
 
 import re
+import sys
 import time
 from typing import Dict, List, Optional, Tuple, Generator
 from contextlib import contextmanager
@@ -140,7 +141,7 @@ class FormatterPlugin(_FormatterTestingMixin):
         if self.session.output_buf is not None:
             self.session.output_buf.append(text)
         else:
-            print(text, flush=True)
+            sys.stdout.write(text + "\n")
 
     # ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -261,7 +262,7 @@ class FormatterPlugin(_FormatterTestingMixin):
         color_fn  = _OUTCOME_COLOR.get(bdd_step.outcome, c_dim)
         keyword   = getattr(bdd_step.step, "keyword", "").rstrip()
         dur       = c_dim(f"  {bdd_step.duration * 1000:.1f}ms")
-        step_text = color_fn(f"{keyword} {bdd_step.step.name}")
+        step_text = color_fn(f"{keyword} {LineColorizer.sanitize(bdd_step.step.name)}")
         self._p(f"      {color_fn('---')} {badge}  {step_text}{dur}")
 
         if bdd_step.short_msg:
@@ -270,6 +271,7 @@ class FormatterPlugin(_FormatterTestingMixin):
                 if not LineColorizer.is_noise(ln)
             ]
             for i, line in enumerate(lines):
+                line = LineColorizer.sanitize(line)
                 colored = LineColorizer.color_e_line(line, bdd_step.outcome, is_first=i == 0)
                 self._p(f"        {c_emsg('E')}  {colored}")
 
@@ -284,6 +286,7 @@ class FormatterPlugin(_FormatterTestingMixin):
                 lines = [ln for ln in r.short_msg.splitlines()
                          if not LineColorizer.is_noise(ln)]
                 for i, line in enumerate(lines):
+                    line = LineColorizer.sanitize(line)
                     colored = LineColorizer.color_e_line(line, "error", is_first=i == 0)
                     self._p(f"      {c_emsg('E')}  {colored}")
             return
@@ -310,7 +313,8 @@ class FormatterPlugin(_FormatterTestingMixin):
         scenario_name = self.bdd.scenario_names[r.nodeid]
         self._p(f"    {color_fn('---')} {badge}  {color_fn(f'Scenario: {scenario_name}')}")
         if r.short_msg:
-            colored = LineColorizer.color_e_line(r.short_msg, "skipped", is_first=True)
+            sanitized = LineColorizer.sanitize(r.short_msg)
+            colored = LineColorizer.color_e_line(sanitized, "skipped", is_first=True)
             self._p(f"      {c_emsg('E')}  {colored}")
         self.bdd.last_was_full_step = False
 
@@ -326,12 +330,13 @@ class FormatterPlugin(_FormatterTestingMixin):
             if class_name != self._cur_class:
                 if self._cur_class is not None:
                     self._p()
-                self._p(f"  {class_name}")
+                self._p(f"  {LineColorizer.sanitize(class_name)}")
                 self._cur_class = class_name
-            display_name = method_name
+            # display_name = method_name
+            display_name = LineColorizer.sanitize(method_name)
         else:
             self._cur_class = None
-            display_name = r.name
+            display_name = LineColorizer.sanitize(r.name)
 
         self._p(f"  {color_fn('---')} {badge}  {display_name}{dur}")
 
@@ -341,6 +346,7 @@ class FormatterPlugin(_FormatterTestingMixin):
                 if not LineColorizer.is_noise(ln)
             ]
             for i, line in enumerate(lines):
+                line = LineColorizer.sanitize(line)
                 colored = LineColorizer.color_e_line(line, r.outcome, is_first=i == 0)
                 self._p(f"    {c_emsg('E')}  {colored}")
 
