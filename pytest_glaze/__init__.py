@@ -1,15 +1,21 @@
 """
 pytest_glaze — Opinionated pytest output formatter.
 
-Public API. Everything else is internal.
+Public API surface (what users explicitly import):
+    - FormatterPlugin
+    - LineColorizer
+
+Pytest discovers hook functions by introspecting this module via the
+pytest11 entry point, so they must be importable here even though they
+are not part of the user-facing API.
 """
 
 from pytest_glaze._colorizer import LineColorizer
 from pytest_glaze._formatter import FormatterPlugin
 
-# Hook functions discovered automatically by pytest via entry_points.
-# Re-exported here so pytest can find them when the package is loaded.
-from pytest_glaze._hooks import (
+# Hooks: imported so pytest's name-based discovery can find them via
+# getattr(pytest_glaze, "pytest_*"). NOT in __all__ — not for user import.
+from pytest_glaze._hooks import (  # noqa: F401  pylint: disable=unused-import
     pytest_addoption,
     pytest_bdd_after_step,
     pytest_bdd_before_scenario,
@@ -22,11 +28,4 @@ from pytest_glaze._hooks import (
 __all__ = [
     "FormatterPlugin",
     "LineColorizer",
-    "pytest_addoption",
-    "pytest_configure",
-    "pytest_bdd_before_scenario",
-    "pytest_bdd_before_step",
-    "pytest_bdd_after_step",
-    "pytest_bdd_step_error",
-    "pytest_bdd_step_func_lookup_error",
 ]

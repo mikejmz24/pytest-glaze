@@ -1,5 +1,4 @@
 
-PYTHON   := python
 PYTEST   := uv run python -m pytest
 TESTS    := tests/
 
