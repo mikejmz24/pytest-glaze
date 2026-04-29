@@ -4,13 +4,12 @@
 
 ### A thin, transparent coat that makes your test output shine.
 
+[![CI](https://github.com/mikejmz24/pytest-glaze/actions/workflows/ci.yml/badge.svg)](...)
 [![PyPI version](https://img.shields.io/pypi/v/pytest-glaze?color=5fd700&labelColor=0d1117&label=pypi)](https://pypi.org/project/pytest-glaze/)
 [![Python](https://img.shields.io/pypi/pyversions/pytest-glaze?color=5fd700&labelColor=0d1117)](https://pypi.org/project/pytest-glaze/)
 [![pytest](https://img.shields.io/badge/pytest-%E2%89%A57.0-5fd700?labelColor=0d1117)](https://docs.pytest.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-5fd700?labelColor=0d1117)](LICENSE)
 [![GitHub](https://img.shields.io/badge/github-mikejmz24%2Fpytest--glaze-5fd700?labelColor=0d1117&logo=github)](https://github.com/mikejmz24/pytest-glaze)
-
-<!-- [![CI](https://github.com/mikejmz24/pytest-glaze/actions/workflows/ci.yml/badge.svg)](...) -->
 
 <br/>
 
