@@ -10,6 +10,8 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-5fd700?labelColor=0d1117)](LICENSE)
 [![GitHub](https://img.shields.io/badge/github-mikejmz24%2Fpytest--glaze-5fd700?labelColor=0d1117&logo=github)](https://github.com/mikejmz24/pytest-glaze)
 
+<!-- [![CI](https://github.com/mikejmz24/pytest-glaze/actions/workflows/ci.yml/badge.svg)](...) -->
+
 <br/>
 
 ![pytest-glaze demo](demo.svg)
@@ -18,10 +20,20 @@
 
 ---
 
-pytest-glaze is a drop-in pytest output formatter that replaces the default
-terminal reporter with a compact, color-semantic display. Failures surface
-inline — no scrolling to a deferred block — and every color carries a
-consistent meaning across every line type.
+pytest-glaze is an **opt-in** pytest output formatter. Pass `--glaze` to
+activate a compact, color-semantic display. Failures surface inline — no
+scrolling to a deferred block — and every color carries a consistent
+meaning across every line type.
+
+**Get started in 30 seconds:**
+
+```bash
+pip install pytest-glaze   # or: uv add pytest-glaze
+pytest --glaze tests/
+```
+
+No configuration required. The `--glaze` flag activates the formatter
+and silences the default reporter in one step.
 
 ---
 
@@ -56,16 +68,26 @@ Every color carries one meaning, applied consistently across every line type:
 |  🍑   | Soft peach   | Context / prose                             | Exception messages, diff context, `E` prefix, operator keywords          |
 |  🔅   | Dim          | Metadata                                    | Duration, collection count, `Total:` line                                |
 
+> **Diff convention:** pytest-glaze follows pytest's assertion semantics,
+> not git diff convention. `-` marks the **expected** value (green — the
+> target your test asserts). `+` marks the **received** value (red — what
+> your code actually produced). This is the inverse of git, where `-` means
+> removed and `+` means added.
+
 ---
 
 ## Installation
 
 ```bash
-pip install pytest-glaze
+pip install pytest-glaze      # standard / venv
+pip3 install pytest-glaze     # macOS system Python
+uv add pytest-glaze           # uv projects
+poetry add pytest-glaze       # poetry projects
 ```
 
-pytest-glaze registers itself automatically — no configuration required.
-Install and run.
+pytest-glaze registers itself via pytest's plugin system automatically —
+no `conftest.py` entry or `pytest_plugins` declaration needed.
+Activate it per-run with the `--glaze` flag.
 
 ### Requirements
 
@@ -76,12 +98,35 @@ Install and run.
 
 ## Usage
 
-### Automatic
+### Opt-in via `--glaze`
 
-Once installed, pytest-glaze activates for every `pytest` invocation:
+pytest-glaze is auto-registered by pytest on install but **opt-in by
+default** — it activates only when you pass `--glaze`:
 
 ```bash
-pytest tests/
+pytest --glaze tests/
+```
+
+This means existing CI pipelines and teammates who haven't installed the
+package are unaffected. The default reporter runs unchanged until you
+explicitly pass the flag.
+
+### Always-on via `pyproject.toml`
+
+To activate glaze for every run without passing `--glaze` each time, add
+it to your pytest configuration:
+
+```toml
+# pyproject.toml
+[tool.pytest.ini_options]
+addopts = "--glaze"
+```
+
+Or in `pytest.ini`:
+
+```ini
+[pytest]
+addopts = --glaze
 ```
 
 ### Makefile (strongly recommended)
@@ -91,14 +136,12 @@ available when you need to debug the formatter itself. This is the
 recommended setup for any project with a regular test workflow.
 
 ```makefile
-PYTHON := python
 PYTEST := uv run pytest          # or: python -m pytest
 TESTS  := tests/
 
-# Core formatter flags
-# -p no:terminal    silence the default reporter
-# -p pytest_glaze   load our plugin (PYTHONPATH=. makes it importable)
-FMT := -p no:terminal -p pytest_glaze
+# Core formatter flags.
+# --glaze activates pytest-glaze and silences the default reporter.
+FMT := --glaze
 
 # Optional pass-through filters
 SUITE ?=
@@ -118,6 +161,8 @@ _KFLAG := $(if $(K),-k "$(K)",$(if $(CASE),-k "$(CASE)",))
 ##               make test SUITE=tests/test_entities.py
 ##               make test CASE=test_return_statuses_dict
 ##               make test K="sprint and not slow"
+# PYTHONPATH=. is only needed for editable/development installs where
+# pytest_glaze is not yet on sys.path. Remove it if using pip install.
 test:
 	@PYTHONPATH=. $(PYTEST) $(FMT) $(_PATH) $(_KFLAG) $(ARGS)
 
@@ -138,7 +183,10 @@ help:
 	@grep -E '^##' Makefile | sed 's/^## /  /'
 ```
 
-### Disable for a single run
+### Skip glaze for a single run
+
+Omit `--glaze` to use the default reporter. If you have `--glaze` in
+`pytest.ini` or `pyproject.toml` and need to override it:
 
 ```bash
 pytest -p no:pytest_glaze tests/
@@ -226,6 +274,9 @@ inline on failures — no separate output block to hunt for.
 
 ![pytest-glaze per-file summaries](docs/images/demo_perfile.svg)
 
+Each file group closes with a `=> N passed, N failed` summary line.
+Gives instant orientation in multi-file runs without reading every result.
+
 </details>
 
 <details>
@@ -248,7 +299,10 @@ as regular tests.
 ### Requirements
 
 ```bash
-pip install pytest-bdd
+pip install pytest-bdd      # standard / venv
+pip3 install pytest-bdd     # macOS system Python
+uv add pytest-bdd           # uv projects
+poetry add pytest-bdd       # poetry projects
 ```
 
 ### Compact mode (default)
@@ -342,13 +396,24 @@ pytest-glaze is a pure formatter with no opinion on how you write your tests.
 It works alongside:
 
 - **pytest-cov** — coverage reporting is unaffected
-- **pytest-xdist** — parallel runs are supported
+- **pytest-xdist** — formatting output is compatible; BDD hook ordering
+  under parallel workers is not explicitly tested
 - **pytest-bdd** — full BDD-aware rendering (see above)
 - **pytest-mock**, **pytest-asyncio**, and any plugin that doesn't replace
   the terminal reporter
 
 > **Note:** Any plugin that also replaces the terminal reporter (e.g.
 > `pytest-rich`) will conflict. Use one formatter at a time.
+>
+> If you have `addopts = "--glaze"` in `pyproject.toml` or `pytest.ini`
+> and hit a conflict error, override it for that run:
+>
+> ```bash
+> pytest -p no:pytest_glaze tests/
+> ```
+>
+> Or remove `--glaze` from `addopts` and pass it explicitly only when
+> you want glaze output.
 
 ---
 
