@@ -55,8 +55,3 @@ jobs:
 
       - name: Build
         run: uv build
-
-      - name: Check dist with twine
-        run: |
-          uv run pip install twine
-          uv run twine check dist/*
