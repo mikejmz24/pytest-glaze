@@ -27,7 +27,7 @@ class _StepLike(Protocol):
     keyword: str
 
 
-@dataclass
+@dataclass(slots=True)
 class TestResult:
     """Normalised result for a single test, ready for rendering."""
 
@@ -40,7 +40,7 @@ class TestResult:
     sections: List[Tuple[str, str]] = field(default_factory=list)
 
 
-@dataclass
+@dataclass(slots=True)
 class ScenarioMeta:
     """
     Metadata captured at collection time for a single BDD scenario.
@@ -53,7 +53,7 @@ class ScenarioMeta:
     feature_name: Optional[str] = None
 
 
-@dataclass
+@dataclass(slots=True)
 class _BDDStep:
     """Buffered BDD step waiting to be rendered at scenario flush time."""
 
@@ -63,7 +63,7 @@ class _BDDStep:
     short_msg: Optional[str]
 
 
-@dataclass
+@dataclass(slots=True)
 class _BDDState:  # pylint: disable=too-many-instance-attributes
     """
     Mutable BDD rendering state — owned by FormatterPlugin.
@@ -88,7 +88,7 @@ class _BDDState:  # pylint: disable=too-many-instance-attributes
     last_was_full_step: bool = False
 
 
-@dataclass
+@dataclass(slots=True)
 class _SessionState:
     """Session-level state for FormatterPlugin."""
 

@@ -11,7 +11,20 @@ import os
 import sys
 from typing import Callable, Dict
 
-_NO_COLOR = not sys.stdout.isatty() or bool(os.environ.get("NO_COLOR"))
+
+def _should_disable_color() -> bool:
+    """
+    Single source of truth for color-mode evaluation.
+
+    Currently called once at import time and cached in _NO_COLOR. Future
+    versions may call this dynamically per render to support runtime
+    color toggling, log redirection, and embedded use cases — see #5
+    in the reviewer notes.
+    """
+    return not sys.stdout.isatty() or bool(os.environ.get("NO_COLOR"))
+
+
+_NO_COLOR = _should_disable_color()
 
 # ── ANSI palette ──────────────────────────────────────────────────────────────
 
