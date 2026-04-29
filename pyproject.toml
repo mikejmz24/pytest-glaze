@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name        = "pytest-glaze"
-version     = "0.2.7"
+version     = "0.2.8"
 description = "A thin, transparent coat that makes your test output shine."
 readme      = "README.md"
 license     = { file = "LICENSE" }
