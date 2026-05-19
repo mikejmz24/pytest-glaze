@@ -26,10 +26,12 @@ def _should_disable_color() -> bool:
     """
     Single source of truth for color-mode evaluation.
 
-    Currently called once at import time and cached in _NO_COLOR. Future
-    versions may call this dynamically per render to support runtime
-    color toggling, log redirection, and embedded use cases.
+    Color is disabled when stdout is not a TTY or $NO_COLOR is set.
+    Color is force-enabled when $FORCE_COLOR is set — used by CI systems
+    and test runners that capture output but still want ANSI codes.
     """
+    if os.environ.get("FORCE_COLOR"):
+        return False
     return not sys.stdout.isatty() or bool(os.environ.get("NO_COLOR"))
 
 

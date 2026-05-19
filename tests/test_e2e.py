@@ -486,3 +486,63 @@ def test_c0_control_chars_in_assertion_do_not_reach_output(pytester):
     )
 
     assert result.ret == 1, f"Expected failed exit, got ret={result.ret}:\n{output}"
+
+
+def test_terminal_writer_available_under_glaze(pytester):
+    """config.get_terminal_writer() must not crash when --glaze is active.
+
+    Plugins like pytest-cov call get_terminal_writer() internally.
+    The _TerminalReporterStub must satisfy this interface. We call it
+    in pytest_sessionstart (after configure) to ensure the stub is registered.
+    """
+    pytester.makeconftest("""
+        def pytest_sessionstart(session):
+            try:
+                session.config.get_terminal_writer()
+            except Exception as e:
+                raise RuntimeError(f"get_terminal_writer() failed: {e}") from e
+    """)
+    pytester.makepyfile("""
+        def test_pass():
+            pass
+    """)
+    result = pytester.runpytest("--glaze", "-p", "no:terminal")
+    assert result.ret == 0
+
+
+def test_glaze_theme_light_emits_different_colors(pytester, monkeypatch):
+    """--glaze-theme=light must emit different ANSI codes than dark.
+
+    Uses FORCE_COLOR=1 to ensure ANSI codes are emitted in the subprocess
+    regardless of TTY state. dark uses bright green \\x1b[92m for PASS;
+    light uses forest green \\x1b[32m.
+    """
+    monkeypatch.setenv("FORCE_COLOR", "1")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    pytester.makepyfile("""
+        def test_pass():
+            pass
+    """)
+    dark = pytester.runpytest_subprocess(
+        "--glaze", "--glaze-theme=dark", "-p", "no:terminal"
+    )
+    light = pytester.runpytest_subprocess(
+        "--glaze", "--glaze-theme=light", "-p", "no:terminal"
+    )
+    dark_out = "\n".join(dark.outlines)
+    light_out = "\n".join(light.outlines)
+    assert "\x1b[92m" in dark_out, "dark theme must use bright green for PASS"
+    assert "\x1b[32m" in light_out, "light theme must use forest green for PASS"
+    assert dark_out != light_out
+
+
+def test_without_glaze_does_not_activate_formatter(pytester):
+    """Without --glaze, the default pytest reporter must remain active."""
+    pytester.makepyfile("""
+        def test_pass():
+            pass
+    """)
+    result = pytester.runpytest()
+    # Default reporter uses 'passed' not 'PASS'
+    assert "passed" in result.stdout.str()
+    assert "PASS" not in result.stdout.str()
