@@ -202,8 +202,12 @@ when piping output to a file or another command):
 pytest --glaze tests/ > results.txt
 ```
 
-No configuration required for either case — pytest-glaze detects both
-conditions at startup.
+To force color output even when stdout is not a TTY — useful for CI
+systems that capture output but still want ANSI codes:
+
+```bash
+FORCE_COLOR=1 pytest --glaze tests/
+```
 
 ---
 
