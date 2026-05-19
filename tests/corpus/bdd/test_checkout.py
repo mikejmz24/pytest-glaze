@@ -117,12 +117,13 @@ def cart_one_item() -> dict:
 
 @when("the cart is validated against live stock")
 def validate_stock(cart: dict) -> None:
+    _ = cart  # ordering dependency
     raise RuntimeError("inventory service timed out after 5000ms")
 
 
 @then("the item is confirmed available")
 def item_available(cart: dict) -> None:  # pragma: no cover
-    pass
+    _ = cart  # ordering dependency
 
 
 # ── Scenario 5: Background-style shared setup ─────────────────────────────────
@@ -190,7 +191,7 @@ def feature_flag_disabled() -> bool:
 
 @when("the user tries to access it")
 def access_disabled_feature(flag: bool) -> None:
-    pass
+    _ = flag  # ordering dependency
 
 
 @then("the page is not found")
@@ -214,6 +215,7 @@ def two_promos() -> list:
 @when("both codes are applied", target_fixture="discount")
 def apply_both(promos: list) -> int:
     # Bug: returns sum instead of max.
+    _ = promos  # ordering dependency
     return sum([10, 20])
 
 

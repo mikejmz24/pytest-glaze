@@ -46,6 +46,7 @@ def user_table_seeded(db: dict) -> None:
 
 @when("the user submits valid credentials", target_fixture="auth_result")
 def submit_valid_credentials(db: dict) -> dict:
+    _ = db  # ordering dependency — ensures db setup runs first
     return {"success": True, "session_token": "abc123"}
 
 
@@ -59,6 +60,7 @@ def session_created(auth_result: dict) -> None:
 
 @when("the user submits invalid credentials", target_fixture="auth_result")
 def submit_invalid_credentials(db: dict) -> dict:
+    _ = db  # ordering dependency — ensures db setup runs first
     return {"success": False, "error": "invalid password"}
 
 

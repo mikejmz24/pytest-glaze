@@ -11,6 +11,8 @@ Covers:
 
 from __future__ import annotations
 
+from typing import Generator
+
 import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
@@ -29,12 +31,12 @@ def db_connection_established() -> dict:
 
 @when("the user queries their profile")
 def query_profile(db_conn: dict) -> None:
-    pass  # pragma: no cover — never reached
+    _ = db_conn  # ordering dependency
 
 
 @then("the profile data is returned")
 def profile_returned(db_conn: dict) -> None:
-    pass  # pragma: no cover — never reached
+    _ = db_conn  # ordering dependency
 
 
 # ── Scenario 12: Xpass ────────────────────────────────────────────────────────
@@ -80,7 +82,7 @@ def defined_step() -> dict:
 
 @then("this step is never reached")
 def never_reached(state: dict) -> None:
-    pass  # pragma: no cover
+    _ = state  # ordering dependency
 
 
 # ── Scenario 14: Full And/But keyword chain ───────────────────────────────────
@@ -130,10 +132,9 @@ def test_teardown_failure() -> None: ...
 
 
 @given("a resource that fails on cleanup", target_fixture="leaky_resource")
-def leaky_resource() -> dict:
+def leaky_resource() -> Generator[dict, None, None]:
     resource = {"data": "ok", "cleaned": False}
     yield resource
-    # Teardown — intentional failure
     raise RuntimeError("cleanup failed: could not release resource lock")
 
 
