@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional, Protocol, Set, Tuple, Union
+from typing import Literal, Optional, Protocol, Union
 
 MAX_E_LINES: int = 15
 
@@ -39,10 +39,10 @@ class TestResult:
     outcome: Outcome
     duration: float  # seconds
     short_msg: Optional[str] = None  # one-liner shown on the E line
-    sections: List[Tuple[str, str]] = field(default_factory=list)
+    sections: list[tuple[str, str]] = field(default_factory=list)
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class ScenarioMeta:
     """
     Metadata captured at collection time for a single BDD scenario.
@@ -77,12 +77,12 @@ class _BDDState:  # pylint: disable=too-many-instance-attributes
         protected members
     """
 
-    step_t0: Dict[int, float] = field(default_factory=dict)
-    handled: Set[str] = field(default_factory=set)
+    step_t0: dict[int, float] = field(default_factory=dict)
+    handled: set[str] = field(default_factory=set)
     first_in_file: bool = True
-    scenario_buf: List[Union[str, _BDDStep]] = field(default_factory=list)
+    scenario_buf: list[Union[str, _BDDStep]] = field(default_factory=list)
     last_step_idx: int = -1
-    scenario_meta: Dict[str, ScenarioMeta] = field(default_factory=dict)
+    scenario_meta: dict[str, ScenarioMeta] = field(default_factory=dict)
     cur_feature: Optional[str] = None
     any_feature_printed: bool = False
     pending_file: Optional[str] = None
@@ -95,8 +95,8 @@ class _SessionState:
     """Session-level state for FormatterPlugin."""
 
     t0: float = 0.0
-    col_errors: List[Tuple[str, str]] = field(default_factory=list)
-    output_buf: Optional[List[str]] = None
+    col_errors: list[tuple[str, str]] = field(default_factory=list)
+    output_buf: Optional[list[str]] = None
     counts: Counter[Outcome] = field(default_factory=Counter)
 
 
@@ -105,8 +105,8 @@ __all__ = [
     "Outcome",
     "TestResult",
     "ScenarioMeta",
-    "_BDDStep",
-    "_BDDState",
-    "_SessionState",
+    # "_BDDStep",
+    # "_BDDState",
+    # "_SessionState",
     "Theme",
 ]
