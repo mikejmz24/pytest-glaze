@@ -18,8 +18,8 @@ from tests.helpers import (
     SOFT_PEACH,
     STANDARD_RED,
     YELLOW,
-    _make_result,
     is_colorless,
+    make_result,
     name_is_uncolored,
     strip_ansi,
 )
@@ -223,26 +223,26 @@ def test_class_header_no_color(): ...
 
 @given("a passing test result", target_fixture="result")
 def passing_result():
-    return _make_result()
+    return make_result()
 
 
 @given("a failing test result", target_fixture="result")
 def failing_result():
-    return _make_result(outcome="failed", short_msg="assert False")
+    return make_result(outcome="failed", short_msg="assert False")
 
 
 @given(
     parsers.parse('a passing test result with name "{name}"'), target_fixture="result"
 )
 def passing_result_named(name):
-    return _make_result(name=name)
+    return make_result(name=name)
 
 
 @given(
     parsers.parse('a failing test result with name "{name}"'), target_fixture="result"
 )
 def failing_result_named(name):
-    return _make_result(name=name, outcome="failed", short_msg="assert False")
+    return make_result(name=name, outcome="failed", short_msg="assert False")
 
 
 @given(
@@ -250,7 +250,7 @@ def failing_result_named(name):
     target_fixture="result",
 )
 def failing_with_error(error):
-    return _make_result(outcome="failed", short_msg=error)
+    return make_result(outcome="failed", short_msg=error)
 
 
 @given(
@@ -258,7 +258,7 @@ def failing_with_error(error):
     target_fixture="result",
 )
 def skipped_result(reason):
-    return _make_result(outcome="skipped", short_msg=f"Skipped: {reason}")
+    return make_result(outcome="skipped", short_msg=f"Skipped: {reason}")
 
 
 @given(
@@ -266,7 +266,7 @@ def skipped_result(reason):
     target_fixture="result",
 )
 def xfailed_result(reason):
-    return _make_result(outcome="xfailed", short_msg=f"xfailed: {reason}")
+    return make_result(outcome="xfailed", short_msg=f"xfailed: {reason}")
 
 
 @given(
@@ -274,14 +274,14 @@ def xfailed_result(reason):
     target_fixture="result",
 )
 def xpassed_result(reason):
-    return _make_result(outcome="xpassed", short_msg=f"xpassed: {reason}")
+    return make_result(outcome="xpassed", short_msg=f"xpassed: {reason}")
 
 
 @given(
     parsers.parse('a test result with a setup error "{error}"'), target_fixture="result"
 )
 def error_result(error):
-    return _make_result(outcome="error", short_msg=error)
+    return make_result(outcome="error", short_msg=error)
 
 
 @given(
@@ -289,7 +289,7 @@ def error_result(error):
     target_fixture="result",
 )
 def failing_with_captured(content):
-    return _make_result(
+    return make_result(
         outcome="failed",
         short_msg="assert False",
         sections=[("Captured stdout call", content)],
@@ -301,7 +301,7 @@ def failing_with_captured(content):
     target_fixture="result",
 )
 def passing_with_captured(content):
-    return _make_result(sections=[("Captured stdout call", content)])
+    return make_result(sections=[("Captured stdout call", content)])
 
 
 @given(
@@ -309,7 +309,7 @@ def passing_with_captured(content):
     target_fixture="result",
 )
 def failing_with_noise(noise):
-    return _make_result(outcome="failed", short_msg=f"assert False\n{noise}")
+    return make_result(outcome="failed", short_msg=f"assert False\n{noise}")
 
 
 @given(
@@ -317,7 +317,7 @@ def failing_with_noise(noise):
     target_fixture="result",
 )
 def passing_with_duration(duration):
-    return _make_result(duration=duration)
+    return make_result(duration=duration)
 
 
 @given(
@@ -325,7 +325,7 @@ def passing_with_duration(duration):
     target_fixture="result",
 )
 def failing_with_diff(diff_line):
-    return _make_result(outcome="failed", short_msg=diff_line)
+    return make_result(outcome="failed", short_msg=diff_line)
 
 
 @given(
@@ -333,7 +333,7 @@ def failing_with_diff(diff_line):
     target_fixture="result",
 )
 def failing_with_context(context):
-    return _make_result(outcome="failed", short_msg=f"assert False\n{context}")
+    return make_result(outcome="failed", short_msg=f"assert False\n{context}")
 
 
 @given(
@@ -341,7 +341,7 @@ def failing_with_context(context):
     target_fixture="results",
 )
 def n_passing_results(n):
-    return [_make_result(name=f"test_{i}") for i in range(n)]
+    return [make_result(name=f"test_{i}") for i in range(n)]
 
 
 @given(
@@ -349,7 +349,7 @@ def n_passing_results(n):
     target_fixture="results",
 )
 def two_named_results(name1, name2):
-    return [_make_result(name=name1), _make_result(name=name2)]
+    return [make_result(name=name1), make_result(name=name2)]
 
 
 @given(
@@ -357,7 +357,7 @@ def two_named_results(name1, name2):
     target_fixture="results",
 )
 def two_results_for_classes(name1, name2):
-    return [_make_result(name=name1), _make_result(name=name2)]
+    return [make_result(name=name1), make_result(name=name2)]
 
 
 @given(
@@ -367,9 +367,9 @@ def two_results_for_classes(name1, name2):
     target_fixture="results",
 )
 def mixed_results(n_pass, n_fail):
-    results = [_make_result(name=f"test_pass_{i}") for i in range(n_pass)]
+    results = [make_result(name=f"test_pass_{i}") for i in range(n_pass)]
     results += [
-        _make_result(name=f"test_fail_{i}", outcome="failed", short_msg="assert False")
+        make_result(name=f"test_fail_{i}", outcome="failed", short_msg="assert False")
         for i in range(n_fail)
     ]
     return results
@@ -404,7 +404,7 @@ def close_file_group(plugin, results):
 
 @when("pytest-glaze renders both results", target_fixture="printed")
 def render_both(plugin, result, teardown_error):
-    teardown = _make_result(
+    teardown = make_result(
         name=result.name, outcome="error", short_msg=teardown_error, file=result.file
     )
     return plugin.render_results([result, teardown])

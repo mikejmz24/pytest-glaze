@@ -9,10 +9,10 @@ Single source of truth for:
 from __future__ import annotations
 
 import re
-from types import SimpleNamespace
+from dataclasses import dataclass
 
 from pytest_glaze._colors import _DARK_PALETTE
-from pytest_glaze._types import TestResult, _BDDStep
+from pytest_glaze._types import Outcome, TestResult, _BDDStep
 
 GREEN = f"\033[{_DARK_PALETTE['pass']}m"
 BRIGHT_RED = f"\033[{_DARK_PALETTE['fail']}m"
@@ -61,9 +61,9 @@ def name_is_uncolored(line: str, name: str) -> bool:
 # ── Test result factories ─────────────────────────────────────────────────────
 
 
-def _make_result(
+def make_result(
     name: str = "test_example",
-    outcome: str = "passed",
+    outcome: Outcome = "passed",
     short_msg: str | None = None,
     duration: float = 0.1,
     sections: list | None = None,
@@ -80,14 +80,24 @@ def _make_result(
     )
 
 
-def _make_step(keyword: str = "Given", name: str = "the cart contains 2 items"):
-    return SimpleNamespace(keyword=keyword, name=name)
+@dataclass
+class _StepStub:
+    """Test double for _StepLike protocol."""
+
+    keyword: str = "Given"
+    name: str = "the cart contains 2 items"
 
 
-def _make_bdd_step(
+def _make_step(
+    keyword: str = "Given", name: str = "the cart contains 2 items"
+) -> _StepStub:
+    return _StepStub(keyword=keyword, name=name)
+
+
+def make_bdd_step(
     keyword: str = "Given",
     name: str = "step",
-    outcome: str = "passed",
+    outcome: Outcome = "passed",
     duration: float = 0.1,
     short_msg: str | None = None,
 ) -> _BDDStep:

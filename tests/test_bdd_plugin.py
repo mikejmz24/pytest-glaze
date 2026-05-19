@@ -17,14 +17,15 @@ Coverage:
 
 import time
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
 from pytest_glaze import FormatterPlugin
 from pytest_glaze._colors import c_bdd_scenario
 from pytest_glaze._hooks import register_plugin
-from pytest_glaze._types import MAX_E_LINES, ScenarioMeta, _BDDStep
-from tests.helpers import _make_result, strip_ansi
+from pytest_glaze._types import MAX_E_LINES, Outcome, ScenarioMeta, _BDDStep
+from tests.helpers import _StepStub, make_result, strip_ansi
 
 pytestmark = pytest.mark.integration
 
@@ -48,10 +49,9 @@ def _scenario(name: str = "Guest completes a purchase"):
 
 def _step(
     keyword: str = "Given",
-    type_: str = "given",
     name: str = "the cart contains 2 items",
-):
-    return SimpleNamespace(keyword=keyword, type=type_, name=name)
+) -> _StepStub:
+    return _StepStub(keyword=keyword, name=name)
 
 
 def _request(nodeid: str = "tests/bdd/test_checkout.py::test_guest_purchase"):
@@ -82,6 +82,7 @@ class TestExtractExceptionMsg:
 
     def test_assertion_error_includes_message_body(self):
         msg = FormatterPlugin.extract_exception_msg(AssertionError("assert 95.0 == 90"))
+        assert msg is not None
         assert "assert 95.0 == 90" in msg
 
     def test_runtime_error_prepends_type(self):
@@ -92,6 +93,7 @@ class TestExtractExceptionMsg:
         msg = FormatterPlugin.extract_exception_msg(
             ConnectionError("could not reach db.internal")
         )
+        assert msg is not None
         assert msg.startswith("ConnectionError:")
 
     def test_empty_exception_returns_type_name(self):
@@ -102,6 +104,7 @@ class TestExtractExceptionMsg:
         """More than MAX_E_LINES lines must be truncated."""
         big = "\n".join(f"line {i}" for i in range(30))
         msg = FormatterPlugin.extract_exception_msg(RuntimeError(big))
+        assert msg is not None
         assert len(msg.splitlines()) == MAX_E_LINES
 
     def test_blank_lines_excluded_from_count(self):
@@ -326,7 +329,7 @@ class TestBddStepError:
 class TestBddFlushScenario:
     """Tests for _bdd_flush_scenario — xfail/xpass correction and buffer clearing."""
 
-    def _make_step_buf(self, p, outcome="passed", short_msg=None):
+    def _make_step_buf(self, p, outcome: Outcome = "passed", short_msg=None):
         bdd_step = _BDDStep(
             step=_step(), outcome=outcome, duration=0.1, short_msg=short_msg
         )
@@ -407,7 +410,7 @@ class TestBddBeforeStep:
         """The first background step must cause a 'Background:' label to be buffered."""
         p = _plugin()
         p.bdd.scenario_buf = []
-        bg_step = _step("Given", "given", "the database is available")
+        bg_step = _step(keyword="Given", name="the database is available")
         feature = SimpleNamespace(
             name="Auth", background=SimpleNamespace(steps=[bg_step])
         )
@@ -429,8 +432,8 @@ class TestBddBeforeStep:
         """Only the FIRST background step gets the label — subsequent ones do not."""
         p = _plugin()
         p.bdd.scenario_buf = []
-        bg_step1 = _step("Given", "given", "step one")
-        bg_step2 = _step("And", "given", "step two")
+        bg_step1 = _step(keyword="Given", name="step one")
+        bg_step2 = _step(keyword="And", name="step two")
         feature = SimpleNamespace(
             name="Auth", background=SimpleNamespace(steps=[bg_step1, bg_step2])
         )
@@ -457,7 +460,7 @@ class TestBddStepFuncLookupError:
     def _run(
         self, p, step=None, nodeid="tests/bdd/test_edge_cases.py::test_missing_step"
     ):
-        step = step or _step("When", "when", "a step that has no implementation")
+        step = step or _step(keyword="When", name="a step that has no implementation")
         p.bdd.step_t0[id(step)] = time.monotonic()
         p.simulate_step_func_lookup_error(
             _request(nodeid),
@@ -622,7 +625,7 @@ class TestBddSkipRendering:
             "tests/bdd/test_checkout.py::test_unimplemented_feature"
         ] = ScenarioMeta(scenario_name="Feature not yet implemented")
         printed = p.flush_scenario("passed", None)
-        r = _make_result(
+        r = make_result(
             "test_unimplemented_feature",
             "skipped",
             "Skipped: feature flag not enabled in CI",
@@ -639,7 +642,7 @@ class TestBddSkipRendering:
             scenario_name="My Scenario"
         )
         printed = p.flush_scenario("passed", None)
-        r = _make_result(
+        r = make_result(
             "test_skip", "skipped", "Skipped: reason", file="tests/bdd/test_checkout.py"
         )
         printed += p.render_result(r)
@@ -658,6 +661,7 @@ class TestBddStepNotFoundMessage:
             'in the feature "/path/to/edge_cases.feature"'
         )
         msg = FormatterPlugin.extract_exception_msg(Exception(long_msg))
+        assert msg is not None
         assert "Line 18" not in msg
         assert "/path/to" not in msg
         assert "Step definition is not found" in msg
@@ -671,13 +675,15 @@ class TestBddCompactMode:
 
     def _make_pass_scenario(self, p, scenario_name="Guest completes a purchase"):
         """Simulate a fully passing scenario in the buffer."""
-        p.bdd.scenario_buf = [c_bdd_scenario(f"    Scenario: {scenario_name}")]
-        for keyword, type_, name in [
-            ("Given", "given", "the cart contains 2 items"),
-            ("When", "when", "the guest submits valid payment"),
-            ("Then", "then", "the order confirmation is shown"),
+        p.bdd.scenario_buf = cast(
+            list[str | _BDDStep], [c_bdd_scenario(f"    Scenario: {scenario_name}")]
+        )
+        for keyword, name in [
+            ("Given", "the cart contains 2 items"),
+            ("When", "the guest submits valid payment"),
+            ("Then", "the order confirmation is shown"),
         ]:
-            step = _step(keyword, type_, name)
+            step = _step(keyword=keyword, name=name)
             bdd_step = _BDDStep(
                 step=step, outcome="passed", duration=0.1, short_msg=None
             )
@@ -720,6 +726,7 @@ class TestBddCompactMode:
         self._make_pass_scenario(p)
         # Override last step to failed
         last = p.bdd.scenario_buf[p.bdd.last_step_idx]
+        assert isinstance(last, _BDDStep)
         last.outcome = "failed"
         last.short_msg = "assert 95.0 == 90"
         printed = p.flush_scenario("failed", "assert 95.0 == 90")
@@ -732,6 +739,7 @@ class TestBddCompactMode:
         p.bdd.steps_mode = False
         self._make_pass_scenario(p)
         last = p.bdd.scenario_buf[p.bdd.last_step_idx]
+        assert isinstance(last, _BDDStep)
         last.outcome = "error"
         last.short_msg = "RuntimeError: timeout"
         printed = p.flush_scenario("error", "RuntimeError: timeout")
@@ -761,6 +769,7 @@ class TestBddCompactMode:
         p.bdd.steps_mode = False
         self._make_pass_scenario(p)
         last = p.bdd.scenario_buf[p.bdd.last_step_idx]
+        assert isinstance(last, _BDDStep)
         last.outcome = "failed"
         last.short_msg = "assert x"
         printed = p.flush_scenario("passed", None)
@@ -771,9 +780,10 @@ class TestBddCompactMode:
 class TestBddCompactSpacing:
     """Blank line rules between all scenario type combinations."""
 
-    def _flush_full_step(self, p, outcome="failed"):
+    def _flush_full_step(self, p, outcome: Outcome = "failed"):
         self._make_pass_scenario(p)
         last = p.bdd.scenario_buf[p.bdd.last_step_idx]
+        assert isinstance(last, _BDDStep)
         last.outcome = outcome
         last.short_msg = "some error" if outcome != "passed" else None
         printed = p.flush_scenario("passed", None)
@@ -781,13 +791,15 @@ class TestBddCompactSpacing:
         return printed
 
     def _make_pass_scenario(self, p, name="Scenario A"):
-        p.bdd.scenario_buf = [c_bdd_scenario(f"    Scenario: {name}")]
-        for keyword, type_, sname in [
-            ("Given", "given", "step one"),
-            ("When", "when", "step two"),
-            ("Then", "then", "step three"),
+        p.bdd.scenario_buf = cast(
+            list[str | _BDDStep], [c_bdd_scenario(f"    Scenario: {name}")]
+        )
+        for keyword, sname in [
+            ("Given", "step one"),
+            ("When", "step two"),
+            ("Then", "step three"),
         ]:
-            step = _step(keyword, type_, sname)
+            step = _step(keyword=keyword, name=sname)
             p.bdd.scenario_buf.append(
                 _BDDStep(step=step, outcome="passed", duration=0.1, short_msg=None)
             )
@@ -807,6 +819,7 @@ class TestBddCompactSpacing:
         p.bdd.scenario_buf.insert(0, "")  # simulate what _bdd_before_scenario does
         p.bdd.last_step_idx += 1  # account for the inserted item
         last = p.bdd.scenario_buf[p.bdd.last_step_idx]
+        assert isinstance(last, _BDDStep)
         last.outcome = "failed"
         last.short_msg = "assert x"
         printed2 = p.flush_scenario("failed", "assert x")
@@ -856,7 +869,7 @@ class TestBddSkipFeatureHeader:
             feature_name="Shopping cart checkout",
         )
         printed = p.flush_scenario("passed", None)
-        r = _make_result(
+        r = make_result(
             "test_unimplemented_feature",
             "skipped",
             "Skipped: feature flag not enabled in CI",
@@ -878,7 +891,7 @@ class TestBddSkipFeatureHeader:
             feature_name="Shopping cart checkout",
         )
         printed = p.flush_scenario("passed", None)
-        r = _make_result(
+        r = make_result(
             "test_unimplemented_feature",
             "skipped",
             "Skipped: feature flag not enabled in CI",
@@ -899,7 +912,7 @@ class TestBddTeardownError:
         p = _plugin()
         p.bdd.handled.add("tests/bdd/test_edge_cases.py::test_teardown_failure")
         printed = p.flush_scenario("passed", None)
-        r = _make_result(
+        r = make_result(
             "test_teardown_failure",
             "error",
             "RuntimeError: cleanup failed",
@@ -915,7 +928,7 @@ class TestBddTeardownError:
         p.bdd.handled.add("tests/bdd/test_edge_cases.py::test_teardown_failure")
         p.bdd.scenario_buf = []  # already flushed
         p.flush_scenario("passed", None)
-        r = _make_result(
+        r = make_result(
             "test_teardown_failure",
             "error",
             "RuntimeError: cleanup failed",

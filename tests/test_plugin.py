@@ -16,8 +16,8 @@ from types import SimpleNamespace
 import pytest
 
 from pytest_glaze import FormatterPlugin
-from pytest_glaze._types import MAX_E_LINES
-from tests.helpers import _make_result, strip_ansi
+from pytest_glaze._types import MAX_E_LINES, Outcome, TestResult
+from tests.helpers import make_result, strip_ansi
 
 pytestmark = pytest.mark.integration
 
@@ -210,20 +210,20 @@ class TestExtractShort:
 class TestClassGrouping:
     """Tests for class-based grouping — header, blank lines, method-only names."""
 
-    def _make_result(self, name, outcome="passed"):
-        return _make_result(name, outcome, file="tests/test_parsers.py")
+    def make_result(self, name: str, outcome: Outcome = "passed") -> TestResult:
+        return make_result(name, outcome, file="tests/test_parsers.py")
 
     def test_class_header_printed_on_first_method(self):
         p = FormatterPlugin()
         printed = p.render_result(
-            self._make_result("TestParseAssert::test_simple_int_equality")
+            self.make_result("TestParseAssert::test_simple_int_equality")
         )
         assert any("TestParseAssert" in l and "::" not in l for l in printed)
 
     def test_method_name_only_on_result_line(self):
         p = FormatterPlugin()
         printed = p.render_result(
-            self._make_result("TestParseAssert::test_simple_int_equality")
+            self.make_result("TestParseAssert::test_simple_int_equality")
         )
         result_lines = [l for l in printed if "PASS" in l or "---" in l]
         assert result_lines
@@ -232,35 +232,35 @@ class TestClassGrouping:
 
     def test_class_header_not_repeated_for_same_class(self):
         p = FormatterPlugin()
-        p.render_result(self._make_result("TestParseAssert::test_a"))
-        printed = p.render_result(self._make_result("TestParseAssert::test_b"))
+        p.render_result(self.make_result("TestParseAssert::test_a"))
+        printed = p.render_result(self.make_result("TestParseAssert::test_b"))
         assert not any("TestParseAssert" in l for l in printed)
 
     def test_new_class_prints_new_header(self):
         p = FormatterPlugin()
-        p.render_result(self._make_result("TestParseAssert::test_a"))
-        printed = p.render_result(self._make_result("TestParseBareAssert::test_b"))
+        p.render_result(self.make_result("TestParseAssert::test_a"))
+        printed = p.render_result(self.make_result("TestParseBareAssert::test_b"))
         assert any("TestParseBareAssert" in l for l in printed)
 
     def test_non_class_test_no_header(self):
         p = FormatterPlugin()
-        printed = p.render_result(self._make_result("test_standalone"))
+        printed = p.render_result(self.make_result("test_standalone"))
         assert not any("::" in l for l in printed)
         assert any("test_standalone" in l for l in printed)
 
     def test_class_reset_on_new_file(self):
         p = FormatterPlugin()
-        p.render_result(self._make_result("TestParseAssert::test_a"))
+        p.render_result(self.make_result("TestParseAssert::test_a"))
         # switch file — render_result opens new file group automatically
         printed = p.render_result(
-            _make_result("TestParseAssert::test_b", file="tests/test_colorizer.py")
+            make_result("TestParseAssert::test_b", file="tests/test_colorizer.py")
         )
         assert any("TestParseAssert" in l for l in printed)
 
     def test_blank_line_between_class_groups(self):
         p = FormatterPlugin()
-        p.render_result(self._make_result("TestParseAssert::test_a"))
-        printed = p.render_result(self._make_result("TestParseBareAssert::test_b"))
+        p.render_result(self.make_result("TestParseAssert::test_a"))
+        printed = p.render_result(self.make_result("TestParseBareAssert::test_b"))
         assert printed[0] == ""  # blank line before new class header
 
 
@@ -270,7 +270,7 @@ class TestTerminalSafety:
 
     def test_ansi_in_test_name_stripped_before_render(self):
         p = FormatterPlugin()
-        result = _make_result(name="\033[2Jtest_evil", file="tests/test_evil.py")
+        result = make_result(name="\033[2Jtest_evil", file="tests/test_evil.py")
         printed = p.render_result(result)
         result_line = next(l for l in printed if "---" in strip_ansi(l))
         # Control sequence must not appear in output
@@ -278,7 +278,7 @@ class TestTerminalSafety:
 
     def test_ansi_in_short_msg_stripped_before_render(self):
         p = FormatterPlugin()
-        result = _make_result(
+        result = make_result(
             name="test_evil",
             outcome="failed",
             short_msg="\033[2JAssertionError: clear screen attack",
@@ -291,7 +291,7 @@ class TestTerminalSafety:
 
     def test_ansi_in_class_name_stripped(self):
         p = FormatterPlugin()
-        result = _make_result(
+        result = make_result(
             name="\033[2JTestEvil::test_method", file="tests/test_evil.py"
         )
         printed = p.render_result(result)
@@ -300,7 +300,7 @@ class TestTerminalSafety:
     def test_legitimate_colors_preserved(self):
         """Sanitization must not strip our own color codes from rendered output."""
         p = FormatterPlugin()
-        result = _make_result(outcome="failed", short_msg="assert 3 == 30")
+        result = make_result(outcome="failed", short_msg="assert 3 == 30")
         printed = p.render_result(result)
         # Our color codes must still be present
         assert any("\033[" in l for l in printed)
