@@ -5,6 +5,8 @@ theme selection via --glaze-theme flag and $COLORFGBG auto-detection.
 
 from __future__ import annotations
 
+from typing import Mapping
+
 import pytest
 from pytest_bdd import given, parsers, scenario, then, when
 
@@ -62,14 +64,6 @@ def test_flag_overrides_env(): ...
 def test_malformed_colorfgbg_dark(): ...
 
 
-# ── Fixtures ──────────────────────────────────────────────────────────────────
-
-
-@pytest.fixture
-def theme_config() -> dict:
-    return {"theme_flag": "auto"}
-
-
 # ── Given ─────────────────────────────────────────────────────────────────────
 
 
@@ -95,7 +89,7 @@ def theme_flag_set(value: str) -> dict:
 
 
 @when("pytest-glaze is configured", target_fixture="resolved_palette")
-def glaze_configured(theme_config: dict) -> dict:
+def glaze_configured(theme_config: dict) -> Mapping[str, str]:
     previous = get_active_palette()
     set_theme(theme_config["theme_flag"])
     palette = get_active_palette()

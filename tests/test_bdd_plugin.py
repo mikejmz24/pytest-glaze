@@ -17,7 +17,6 @@ Coverage:
 
 import time
 from types import SimpleNamespace
-from typing import cast
 
 import pytest
 
@@ -234,14 +233,14 @@ class TestBddAfterStep:
 
     def test_adds_pass_step_to_buffer(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p)
         assert len(_buf_steps(p)) == 1
         assert _buf_steps(p)[0].outcome == "passed"
 
     def test_step_name_preserved(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         step = _step(name="the cart contains 2 items")
         p.bdd.step_t0[id(step)] = time.monotonic()
         p.simulate_after_step(_request(), _feature(), _scenario(), step, None, {})
@@ -249,7 +248,7 @@ class TestBddAfterStep:
 
     def test_nodeid_added_to_handled(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p, nodeid="tests/bdd/test_checkout.py::test_guest_purchase")
         assert "tests/bdd/test_checkout.py::test_guest_purchase" in p.bdd.handled
 
@@ -261,7 +260,7 @@ class TestBddAfterStep:
 
     def test_short_msg_is_none_for_passing_step(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p)
         assert _buf_steps(p)[0].short_msg is None
 
@@ -284,31 +283,31 @@ class TestBddStepError:
 
     def test_assertion_error_outcome_is_failed(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p, AssertionError("assert 95.0 == 90"))
         assert _buf_steps(p)[0].outcome == "failed"
 
     def test_runtime_error_outcome_is_error(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p, RuntimeError("inventory service timed out"))
         assert _buf_steps(p)[0].outcome == "error"
 
     def test_connection_error_outcome_is_error(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p, ConnectionError("could not reach db.internal:5432"))
         assert _buf_steps(p)[0].outcome == "error"
 
     def test_short_msg_captured(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p, RuntimeError("inventory service timed out after 5000ms"))
         assert "inventory service timed out after 5000ms" in _buf_steps(p)[0].short_msg
 
     def test_nodeid_added_to_handled(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(
             p,
             AssertionError("x"),
@@ -401,7 +400,7 @@ class TestBddBeforeStep:
 
     def test_records_step_start_time(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         step = _step()
         p.simulate_before_step(_request(), _feature(), _scenario(), step, None)
         assert id(step) in p.bdd.step_t0
@@ -409,7 +408,7 @@ class TestBddBeforeStep:
     def test_background_label_added_for_first_bg_step(self):
         """The first background step must cause a 'Background:' label to be buffered."""
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         bg_step = _step(keyword="Given", name="the database is available")
         feature = SimpleNamespace(
             name="Auth", background=SimpleNamespace(steps=[bg_step])
@@ -421,7 +420,7 @@ class TestBddBeforeStep:
     def test_no_background_label_for_regular_step(self):
         """Steps from the scenario body must not trigger a Background label."""
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         step = _step()
         feature = _feature()  # background=None
         p.simulate_before_step(_request(), feature, _scenario(), step, None)
@@ -431,7 +430,7 @@ class TestBddBeforeStep:
     def test_no_background_label_for_second_bg_step(self):
         """Only the FIRST background step gets the label — subsequent ones do not."""
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         bg_step1 = _step(keyword="Given", name="step one")
         bg_step2 = _step(keyword="And", name="step two")
         feature = SimpleNamespace(
@@ -443,7 +442,7 @@ class TestBddBeforeStep:
 
     def test_no_background_label_when_background_has_no_steps(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         step = _step()
         feature = SimpleNamespace(name="Auth", background=SimpleNamespace(steps=[]))
         p.simulate_before_step(_request(), feature, _scenario(), step, None)
@@ -473,19 +472,19 @@ class TestBddStepFuncLookupError:
 
     def test_outcome_is_error(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p)
         assert _buf_steps(p)[0].outcome == "error"
 
     def test_short_msg_captured(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p)
         assert _buf_steps(p)[0].short_msg is not None
 
     def test_nodeid_added_to_handled(self):
         p = _plugin()
-        p.bdd.scenario_buf = []
+        p.bdd.scenario_buf.clear()
         self._run(p)
         assert "tests/bdd/test_edge_cases.py::test_missing_step" in p.bdd.handled
 
@@ -675,9 +674,8 @@ class TestBddCompactMode:
 
     def _make_pass_scenario(self, p, scenario_name="Guest completes a purchase"):
         """Simulate a fully passing scenario in the buffer."""
-        p.bdd.scenario_buf = cast(
-            list[str | _BDDStep], [c_bdd_scenario(f"    Scenario: {scenario_name}")]
-        )
+        p.bdd.scenario_buf.clear()
+        p.bdd.scenario_buf.append(c_bdd_scenario(f"    Scenario: {scenario_name}"))
         for keyword, name in [
             ("Given", "the cart contains 2 items"),
             ("When", "the guest submits valid payment"),
@@ -791,9 +789,8 @@ class TestBddCompactSpacing:
         return printed
 
     def _make_pass_scenario(self, p, name="Scenario A"):
-        p.bdd.scenario_buf = cast(
-            list[str | _BDDStep], [c_bdd_scenario(f"    Scenario: {name}")]
-        )
+        p.bdd.scenario_buf.clear()
+        p.bdd.scenario_buf.append(c_bdd_scenario(f"    Scenario: {name}"))
         for keyword, sname in [
             ("Given", "step one"),
             ("When", "step two"),
@@ -926,7 +923,7 @@ class TestBddTeardownError:
         """Teardown error must not trigger _bdd_flush_scenario — buffer is empty."""
         p = _plugin()
         p.bdd.handled.add("tests/bdd/test_edge_cases.py::test_teardown_failure")
-        p.bdd.scenario_buf = []  # already flushed
+        p.bdd.scenario_buf.clear()  # already flushed
         p.flush_scenario("passed", None)
         r = make_result(
             "test_teardown_failure",

@@ -10,7 +10,7 @@ Covers:
 from __future__ import annotations
 
 import pytest
-from pytest_bdd import given, scenario, then
+from pytest_bdd import scenario, then
 
 
 @scenario("features/shared.feature", "Application health check using shared steps")
@@ -41,6 +41,6 @@ def assert_app_version(app: dict) -> None:
     assert app["config"]["version"] == "1.0.0"
 
 
-@pytest.mark.usefixtures("app_config")
+@pytest.mark.usefixtures("session_config")
 @scenario("features/shared.feature", "Scenario with injected fixture via usefixtures")
 def test_usefixtures_scenario() -> None: ...

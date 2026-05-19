@@ -1,6 +1,8 @@
 # tests/conftest.py
 """Shared test infrastructure for all pytest-glaze unit tests."""
 
+import sys
+
 import pytest
 
 from pytest_glaze import _colors
@@ -23,7 +25,6 @@ def force_color(monkeypatch):
 def configured_palette():
     """Capture the palette configured at session start (respects --glaze-theme)."""
     palette = get_active_palette()
-    import sys
 
     print(
         f"\nDEBUG configured_palette={'DARK' if palette is _DARK_PALETTE else 'LIGHT'}",

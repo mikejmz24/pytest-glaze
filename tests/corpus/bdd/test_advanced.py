@@ -241,6 +241,7 @@ def sso_authenticated() -> dict:
     target_fixture="transaction_records",
 )
 def fetch_transactions(auth_session: dict) -> list:
+    _ = auth_session  # ordering dependency — ensures auth setup runs first
     return [{"id": f"TXN-{i}", "amount": i * 10} for i in range(1, 6)]
 
 

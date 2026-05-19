@@ -111,3 +111,21 @@ class _FormatterTestingMixin:
     def cur_file(self) -> "Optional[str]":
         """Currently open file. For testing only."""
         return self._cur_file  # type: ignore[attr-defined]
+
+    @property
+    def test_outcome(self) -> str:
+        """Current test outcome for BDD flush. For testing only."""
+        return getattr(self, "_test_outcome", "passed")
+
+    @test_outcome.setter
+    def test_outcome(self, value: str) -> None:
+        self._test_outcome = value  # type: ignore[attr-defined]
+
+    @property
+    def test_short_msg(self) -> "Optional[str]":
+        """Current test short message for BDD flush. For testing only."""
+        return getattr(self, "_test_short_msg", None)
+
+    @test_short_msg.setter
+    def test_short_msg(self, value: "Optional[str]") -> None:
+        self._test_short_msg = value  # type: ignore[attr-defined]

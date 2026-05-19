@@ -12,21 +12,12 @@ from __future__ import annotations
 import pytest
 from pytest_bdd import given, then, when
 
-# ── Session-scoped shared fixture ─────────────────────────────────────────────
-
-
-@pytest.fixture(scope="session")
-def app_config() -> dict:
-    """Session-scoped config available to all BDD steps."""
-    return {"env": "test", "version": "1.0.0", "debug": False}
-
-
 # ── Shared step definitions ───────────────────────────────────────────────────
 
 
 @given("the application is running", target_fixture="app")
-def app_is_running(app_config: dict) -> dict:
-    return {"running": True, "config": app_config}
+def app_is_running(session_config: dict) -> dict:
+    return {"running": True, "config": session_config}
 
 
 @given("the database is connected", target_fixture="db")

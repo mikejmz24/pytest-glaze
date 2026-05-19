@@ -27,11 +27,6 @@ from tests.helpers import (
 pytestmark = pytest.mark.acceptance
 
 
-@pytest.fixture
-def plugin() -> FormatterPlugin:
-    return FormatterPlugin()
-
-
 def _render_one(plugin: FormatterPlugin, result: TestResult) -> List[str]:
     return plugin.render_result(result)
 
