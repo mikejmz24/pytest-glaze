@@ -19,7 +19,6 @@ from pytest_glaze._types import ScenarioMeta
 from tests.helpers import (
     BABY_BLUE,
     BRIGHT_RED,
-    DIM,
     GREEN,
     STANDARD_RED,
     STEEL_BLUE,
@@ -28,6 +27,8 @@ from tests.helpers import (
     _make_result,
     strip_ansi,
 )
+
+pytestmark = pytest.mark.acceptance
 
 # ── Plugin fixture ────────────────────────────────────────────────────────────
 

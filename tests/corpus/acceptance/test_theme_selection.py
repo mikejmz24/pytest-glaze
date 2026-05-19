@@ -16,6 +16,7 @@ from pytest_glaze._colors import (
     set_theme,
 )
 
+pytestmark = pytest.mark.acceptance
 # ── Scenarios ─────────────────────────────────────────────────────────────────
 
 

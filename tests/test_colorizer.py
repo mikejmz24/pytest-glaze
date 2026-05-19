@@ -12,8 +12,12 @@ Coverage:
                         context comparisons, label lines, approx table rows
 """
 
+import pytest
+
 from pytest_glaze import LineColorizer
 from tests.helpers import BRIGHT_RED, GREEN, SOFT_PEACH, strip_ansi
+
+pytestmark = pytest.mark.unit
 
 
 def has_color(text: str, code: str) -> bool:
@@ -584,6 +588,7 @@ class TestStripAnsi:
         assert LineColorizer.sanitize(text) == "PASS\\x01\\x02"
 
 
+@pytest.mark.security
 class TestSanitize:
     def test_strips_general_csi(self):
         """Sanitize must handle CSI sequences beyond simple SGR color codes."""

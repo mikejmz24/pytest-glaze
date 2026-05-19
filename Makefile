@@ -133,6 +133,18 @@ test-bdd-json-expanded:
 test-unit:
 	@PYTHONPATH=. $(PYTEST) $(FMT) tests/test_parsers.py tests/test_colorizer.py tests/test_plugin.py $(_KFLAG) $(ARGS)
 
+## test-marks     Run only marked test categories. MARK= for specific mark.
+##                Examples:
+##                  make test-marks MARK=unit
+##                  make test-marks MARK=security
+##                  make test-marks MARK=e2e
+test-marks:
+	@PYTHONPATH=. $(PYTEST) $(FMT) -m "$(MARK)" $(_PATH) $(_KFLAG) $(ARGS)
+
+## test-fast-unit  Run unit tests only, stop on first failure.
+test-fast-unit:
+	@PYTHONPATH=. $(PYTEST) $(FMT) -x -m unit $(_PATH) $(_KFLAG) $(ARGS)
+
 ## test-raw          Raw default pytest output. Useful for debugging the formatter.
 ##                   Accepts SUITE=, CASE=, K= for filtering.
 test-raw:

@@ -24,6 +24,8 @@ from tests.helpers import (
     strip_ansi,
 )
 
+pytestmark = pytest.mark.acceptance
+
 
 @pytest.fixture
 def plugin() -> FormatterPlugin:

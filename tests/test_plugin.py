@@ -13,10 +13,13 @@ Coverage:
 
 from types import SimpleNamespace
 
-import pytest_glaze
-from pytest_glaze._types import MAX_E_LINES
+import pytest
+
 from pytest_glaze import FormatterPlugin
+from pytest_glaze._types import MAX_E_LINES
 from tests.helpers import _make_result, strip_ansi
+
+pytestmark = pytest.mark.integration
 
 # ── split_nodeid ──────────────────────────────────────────────────────────────
 
@@ -261,6 +264,7 @@ class TestClassGrouping:
         assert printed[0] == ""  # blank line before new class header
 
 
+@pytest.mark.security
 class TestTerminalSafety:
     """ANSI escape sequences in test names must not corrupt terminal output."""
 

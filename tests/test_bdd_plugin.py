@@ -18,11 +18,15 @@ Coverage:
 import time
 from types import SimpleNamespace
 
+import pytest
+
 from pytest_glaze import FormatterPlugin
 from pytest_glaze._colors import c_bdd_scenario
 from pytest_glaze._hooks import register_plugin
 from pytest_glaze._types import MAX_E_LINES, ScenarioMeta, _BDDStep
 from tests.helpers import _make_result, strip_ansi
+
+pytestmark = pytest.mark.integration
 
 # ── Stubs ─────────────────────────────────────────────────────────────────────
 

@@ -63,11 +63,11 @@ disable = [
 [tool.pytest.ini_options]
 addopts = "-p pytester"
 markers = [
-    "smoke: quick health check scenarios",
-    "regression: full regression suite scenarios",
-    "slow: slow running scenarios",
-    "bronze: bronze tier examples",
-    "gold: gold tier examples",
+    "unit: fast, isolated unit tests with no I/O or subprocess",
+    "integration: tests that wire multiple components together",
+    "acceptance: BDD acceptance tests for user-facing rendering behavior",
+    "e2e: end-to-end tests using pytester subprocesses",
+    "security: tests covering sanitization and hostile input handling",
 ]
 filterwarnings = ["ignore::pytest.PytestCollectionWarning"]
 

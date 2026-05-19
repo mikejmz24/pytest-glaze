@@ -14,7 +14,11 @@ Coverage:
   is_noise            — noise-line suppression filter
 """
 
+import pytest
+
 from pytest_glaze import LineColorizer
+
+pytestmark = pytest.mark.unit
 
 # ── parse_assert ──────────────────────────────────────────────────────────────
 

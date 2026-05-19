@@ -30,6 +30,8 @@ from pytest_glaze._colors import (
     theme_context,
 )
 
+pytestmark = pytest.mark.unit
+
 # ── detect_theme ──────────────────────────────────────────────────────────────
 
 
