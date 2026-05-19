@@ -17,7 +17,7 @@ import termios
 import tty
 from contextlib import contextmanager
 from types import MappingProxyType
-from typing import Callable, Dict, Mapping, Optional, Tuple
+from typing import Callable, Mapping, Optional
 
 from pytest_glaze._types import Outcome, Theme
 
@@ -549,7 +549,7 @@ def c_bdd_scenario(t: str) -> str:
 
 # ── Outcome tables ────────────────────────────────────────────────────────────
 
-_OUTCOME_ORDER: Tuple[Outcome, ...] = (
+_OUTCOME_ORDER: tuple[Outcome, ...] = (
     "passed",
     "failed",
     "error",
@@ -558,7 +558,7 @@ _OUTCOME_ORDER: Tuple[Outcome, ...] = (
     "xpassed",
 )
 
-_BADGE_LABELS: Dict[str, str] = {
+_BADGE_LABELS: dict[str, str] = {
     "passed": "PASS",
     "failed": "FAIL",
     "error": "ERROR",
@@ -567,7 +567,7 @@ _BADGE_LABELS: Dict[str, str] = {
     "xpassed": "XPASS",
 }
 
-_OUTCOME_COLOR: Dict[Outcome, Callable[[str], str]] = {
+_OUTCOME_COLOR: dict[Outcome, Callable[[str], str]] = {
     "passed": c_pass,
     "failed": c_fail,
     "error": c_error,
@@ -576,7 +576,7 @@ _OUTCOME_COLOR: Dict[Outcome, Callable[[str], str]] = {
     "xpassed": c_xpass,
 }
 
-_SUMMARY_FMT: Dict[Outcome, Callable[[int], str]] = {
+_SUMMARY_FMT: dict[Outcome, Callable[[int], str]] = {
     "passed": lambda n: c_pass(f"{n} passed"),
     "failed": lambda n: c_fail(f"{n} failed"),
     "error": lambda n: c_error(f"{n} error" if n == 1 else f"{n} errors"),
