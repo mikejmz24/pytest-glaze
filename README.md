@@ -171,10 +171,23 @@ test-unit:
 test-raw:
 	@$(PYTEST) $(_PATH) $(_KFLAG) $(ARGS)
 
+## test-marks  Run tests by category. MARK= for specific mark.
+##             Marks: unit, integration, acceptance, e2e, security.
+##             Examples:
+##               make test-marks MARK=unit
+##               make test-marks MARK=security
+##               make test-marks MARK=e2e
+test-marks:
+	@PYTHONPATH=. $(PYTEST) $(FMT) -m "$(MARK)" $(_PATH) $(_KFLAG) $(ARGS)
+
 ## help        List all targets.
 help:
 	@grep -E '^##' Makefile | sed 's/^## /  /'
 ```
+
+> **Note:** The test suite uses a mark taxonomy to categorize tests.
+> The `tests/corpus/` directory contains intentional failure fixtures —
+> use `make test-marks MARK=unit` for a clean pass/fail signal.
 
 ### Skip glaze for a single run
 
