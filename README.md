@@ -13,7 +13,7 @@
 
 <br/>
 
-![pytest-glaze demo](demo.svg)
+![pytest-glaze demo](docs/images/demo.svg)
 
 </div>
 
