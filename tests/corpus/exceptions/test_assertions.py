@@ -49,7 +49,8 @@ def test_fail_int_equality():
 
 def test_fail_inequality():
     """assert X != Y — inequality operator; both sides colored."""
-    assert 1 != 1
+    x = 1
+    assert x != 1
 
 
 def test_fail_float_equality():
@@ -76,7 +77,8 @@ def test_fail_string_multiline():
 
 def test_fail_string_unicode():
     """Unicode — non-ASCII repr must pass through the colorizer cleanly."""
-    assert "café" == "cafe"
+    received = "café"
+    assert received == "cafe"
 
 
 # ── Ordered comparisons — <, >, <=, >= ───────────────────────────────────────
@@ -182,7 +184,8 @@ def test_fail_list():
 
 def test_fail_list_empty_vs_populated():
     """Empty vs non-empty — exercises the no-common-prefix diff path."""
-    assert [] == [1, 2, 3]
+    result = []
+    assert result == [1, 2, 3]
 
 
 def test_fail_tuple():

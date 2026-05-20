@@ -9,8 +9,6 @@ All ERROR outcomes should surface with the RuntimeError message inline.
 Fixtures are defined in conftest.py.
 """
 
-import pytest
-
 # ── Passing baseline ──────────────────────────────────────────────────────────
 
 
@@ -30,7 +28,8 @@ def test_pass_slow_fixture(slow_fixture):
 def test_error_broken_setup(broken_setup):
     """Fixture raises on setup → ERROR outcome (not FAIL); test body never runs.
     Exercises the when='setup' branch of classify()."""
-    pass  # never reached
+    _ = broken_setup  # pragma: no cover — fixture setup always fails first
+    raise AssertionError("test body should never be reached")
 
 
 # ── Teardown errors ───────────────────────────────────────────────────────────
@@ -47,16 +46,11 @@ def test_error_broken_teardown(broken_teardown):
 # ── Chained fixture failure ───────────────────────────────────────────────────
 
 
-@pytest.fixture
-def depends_on_broken(broken_setup):
-    """Depends on a fixture that always explodes."""
-    return broken_setup  # never reached
-
-
 def test_error_chained_fixture(depends_on_broken):
     """A fixture dependency chain fails at an intermediate node.
     Error propagates from broken_setup through depends_on_broken."""
-    pass  # never reached
+    _ = depends_on_broken  # pragma: no cover — fixture setup always fails first
+    raise AssertionError("test body should never be reached")
 
 
 # ── Fixture-level parametrize (params= on @pytest.fixture) ───────────────────
@@ -78,12 +72,6 @@ def test_fail_parametrized_fixture(parametrized_fixture):
 # ── Request object ────────────────────────────────────────────────────────────
 # The request object gives fixtures access to test context. This pattern is
 # ubiquitous in real codebases; the formatter must handle its output shapes.
-
-
-@pytest.fixture
-def request_aware_fixture(request):
-    """Uses request.node.name to inject test-context data."""
-    return {"test_name": request.node.name, "status": "initialized"}
 
 
 def test_pass_request_fixture(request_aware_fixture):

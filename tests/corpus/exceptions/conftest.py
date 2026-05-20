@@ -40,3 +40,15 @@ def parametrized_fixture(request):
     Distinct from @pytest.mark.parametrize: the param appears in the
     node ID as test_name[alpha], test_name[beta], etc."""
     return {"label": request.param, "value": len(request.param)}
+
+
+@pytest.fixture
+def depends_on_broken(broken_setup):
+    """Depends on a fixture that always explodes."""
+    return broken_setup  # never reached
+
+
+@pytest.fixture
+def request_aware_fixture(request):
+    """Uses request.node.name to inject test-context data."""
+    return {"test_name": request.node.name, "status": "initialized"}

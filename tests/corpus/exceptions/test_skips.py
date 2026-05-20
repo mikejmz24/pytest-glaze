@@ -26,13 +26,12 @@ def test_skip_unconditional():
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows-only feature")
 def test_skip_platform_conditional():
     """skipif — skips on Linux/macOS, runs on Windows. Reason shown when skipped."""
-    pass
+    raise AssertionError("should only run on Windows")
 
 
 def test_skip_imperative():
     """pytest.skip() mid-test — same SKIP badge and yellow E-line as decorator."""
     pytest.skip("skipping imperatively mid-test")
-    assert False  # never reached
 
 
 def test_skip_import():
@@ -48,14 +47,16 @@ def test_skip_import():
 @pytest.mark.xfail(reason="known bug — assert will fail as expected")
 def test_xfail_expected_failure():
     """Marked xfail, actually fails → XFAIL badge (gray). Reason on E-line."""
-    assert 1 == 2
+    expected = 1
+    assert expected == 2
 
 
 @pytest.mark.xfail(reason="this test unexpectedly passes")
 def test_xpass_unexpected_pass():
     """Marked xfail, actually passes → XPASS badge (yellow).
     Exercises the xpassed branch of classify() and the wasxfail reason extraction."""
-    assert 1 == 1
+    x = 1
+    assert x == 1
 
 
 @pytest.mark.xfail(
@@ -64,7 +65,8 @@ def test_xpass_unexpected_pass():
 def test_xfail_strict_becomes_fail():
     """strict=True + test passes → reported as FAILED (not XPASS).
     The only way to produce a strict-xfail badge in the formatter."""
-    assert 1 == 1
+    x = 1
+    assert x == 1
 
 
 @pytest.mark.xfail(raises=ValueError, reason="only xfail if a ValueError is raised")

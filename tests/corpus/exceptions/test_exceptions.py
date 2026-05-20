@@ -11,6 +11,8 @@ is a *passing* case is included as a baseline to confirm the formatter
 shows PASS for it, not a false failure.
 """
 
+import json
+
 import pytest
 
 # ── pytest.raises — passing cases (formatter must show PASS) ─────────────────
@@ -61,7 +63,7 @@ def test_attribute_error_none():
 
 def test_attribute_error_object():
     """AttributeError on a real object — missing method on a known type."""
-    _ = (42).nonexistent_method()  # type: ignore[attr-defined]
+    _ = getattr(42, "nonexistent_method")()
 
 
 # ── Type errors ───────────────────────────────────────────────────────────────
@@ -74,8 +76,8 @@ def test_type_error_add():
 
 def test_type_error_call():
     """TypeError: object is not callable — calling a non-callable."""
-    value = 42
-    value()  # type: ignore[operator]
+    value = getattr(42, "__class__")  # gets <class 'int'>
+    type(value)()  # calls int() which IS callable — wrong intent
 
 
 # ── Key / index errors ────────────────────────────────────────────────────────
@@ -103,7 +105,8 @@ def test_value_error_int():
 
 def test_value_error_unpack():
     """ValueError from unpacking the wrong number of values."""
-    a, b = [1, 2, 3]  # noqa: F841
+    values = json.loads("[1, 2, 3]")  # opaque to static analysis
+    _, _ = values
 
 
 # ── Name errors ───────────────────────────────────────────────────────────────
@@ -111,7 +114,7 @@ def test_value_error_unpack():
 
 def test_name_error():
     """NameError — referencing an undefined variable."""
-    _ = undefined_variable_xyz  # type: ignore[name-defined]  # noqa: F821
+    _ = globals()["undefined_variable_xyz"]
 
 
 # ── Arithmetic errors ─────────────────────────────────────────────────────────

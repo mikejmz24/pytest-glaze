@@ -6,7 +6,8 @@ Covers captured output surfacing in the formatter's section blocks:
   is captured silently.
 
 The formatter renders report.sections (──Captured stdout──, etc.) only
-for non-passing outcomes. NOTE: do not run with --log-cli-level — it requires the full terminal reporter
+for non-passing outcomes.
+NOTE: do not run with --log-cli-level — it requires the full terminal reporter
 interface which the formatter stub does not implement.
 
 Every failing test here must produce at least
