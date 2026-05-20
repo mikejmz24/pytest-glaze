@@ -260,3 +260,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+pyrightconfig.json
+.python-version
